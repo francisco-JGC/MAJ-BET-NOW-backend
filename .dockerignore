@@ -1,0 +1,28 @@
+# Keep the build context small and reproducible. Anything not needed by
+# `npm ci` + `npm run build` should be excluded.
+
+node_modules
+dist
+coverage
+
+.git
+.gitignore
+.github
+
+.env
+.env.*
+!.env.example
+
+.vscode
+.idea
+.DS_Store
+
+*.log
+npm-debug.log*
+
+README.md
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+test

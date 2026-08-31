@@ -1,0 +1,16 @@
+# Railway build + deploy config. The Dockerfile handles everything;
+# Railway just needs to know where the health probe lives and how many
+# restart attempts to allow.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# The controller lives at /api/health because main.ts sets a global prefix.
+healthcheckPath = "/api/health"
+# Give the app up to 30 seconds to boot (migrations + Nest init) before the
+# first probe. If it's still not healthy after that, Railway restarts it.
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
