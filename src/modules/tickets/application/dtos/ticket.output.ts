@@ -15,6 +15,12 @@ export interface TicketOutput {
   folio: string;
   gameId: string;
   salePointId: string;
+  /**
+   * Nombre visible de la sucursal. Se resuelve cuando el caller pasa
+   * un salePoint hidratado a `toTicketOutput`; en respuestas de listados
+   * de alto volumen puede venir `null` para evitar N+1 al resolver.
+   */
+  salePointName: string | null;
   sellerId: string;
   client: string | null;
   status: TicketStatus;
@@ -41,11 +47,13 @@ export const toTicketOutput = (
   ticket: Ticket,
   drawExecuted = false,
   wonPrize = 0,
+  salePointName: string | null = null,
 ): TicketOutput => ({
   id: ticket.id,
   folio: ticket.folio,
   gameId: ticket.gameId,
   salePointId: ticket.salePointId,
+  salePointName,
   sellerId: ticket.sellerId,
   client: ticket.client,
   status: ticket.status,
