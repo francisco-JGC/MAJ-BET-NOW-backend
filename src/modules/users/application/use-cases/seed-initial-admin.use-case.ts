@@ -79,7 +79,10 @@ export class SeedInitialAdmin {
       nationalId: null,
       paymentPercentage: null,
       salePointId: null,
-      createdById: SeedInitialAdmin.NIL_UUID,
+      // Sin creador porque este admin nace del bootstrap, no de otro
+      // usuario. La FK `created_by_id → users(id)` es nullable y NULL
+      // es el valor correcto para "no aplica".
+      createdById: null,
     });
     await this.users.save(admin);
     this.logger.log(
