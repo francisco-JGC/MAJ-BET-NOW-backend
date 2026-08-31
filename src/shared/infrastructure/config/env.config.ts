@@ -23,6 +23,17 @@ export interface AppConfig {
     expiresIn: string;
     refreshExpiresIn: string;
   };
+  /**
+   * Credenciales del admin que el bootstrap crea si la tabla `users` no
+   * tiene ningún admin todavía. Idempotente — corridas subsiguientes lo
+   * ignoran si ya hay alguno. Los tres son opcionales: si faltan, el
+   * bootstrap simplemente no crea nada y hay que hacerlo por SQL.
+   */
+  initialAdmin: {
+    username: string | null;
+    password: string | null;
+    name: string | null;
+  };
 }
 
 /**
@@ -43,6 +54,12 @@ export const envSchema = Joi.object({
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_EXPIRES_IN: Joi.string().default('24h'),
   JWT_REFRESH_EXPIRES_IN: Joi.string().default('30d'),
+  // Bootstrap admin — opcionales. Sin el trio completo, el bootstrap no
+  // crea nada. El password mínimo 8 chars es un piso de seguridad
+  // razonable para prod (el admin puede cambiarlo desde el panel después).
+  INITIAL_ADMIN_USERNAME: Joi.string().min(3).max(60).optional(),
+  INITIAL_ADMIN_PASSWORD: Joi.string().min(8).max(200).optional(),
+  INITIAL_ADMIN_NAME: Joi.string().min(1).max(120).optional(),
 }).custom((value, helpers) => {
   const hasUrl = Boolean(value.DATABASE_URL);
   const hasSplit = Boolean(
@@ -75,5 +92,10 @@ export const envLoader = (): AppConfig => ({
     secret: process.env.JWT_SECRET!,
     expiresIn: process.env.JWT_EXPIRES_IN ?? '24h',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
+  },
+  initialAdmin: {
+    username: process.env.INITIAL_ADMIN_USERNAME ?? null,
+    password: process.env.INITIAL_ADMIN_PASSWORD ?? null,
+    name: process.env.INITIAL_ADMIN_NAME ?? null,
   },
 });

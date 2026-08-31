@@ -8,8 +8,10 @@ import { CreateUser } from './application/use-cases/create-user.use-case';
 import { FindUserById } from './application/use-cases/find-user-by-id.use-case';
 import { FindUserByUsername } from './application/use-cases/find-user-by-username.use-case';
 import { ListUsers } from './application/use-cases/list-users.use-case';
+import { SeedInitialAdmin } from './application/use-cases/seed-initial-admin.use-case';
 import { UpdateUser } from './application/use-cases/update-user.use-case';
 import { USERS_REPOSITORY } from './domain/repositories/users.repository';
+import { UsersBootstrapService } from './infrastructure/bootstrap/users-bootstrap.service';
 import { UsersController } from './infrastructure/http/controllers/users.controller';
 import { UserOrmEntity } from './infrastructure/persistence/entities/user.orm-entity';
 import { TypeOrmUsersRepository } from './infrastructure/persistence/repositories/typeorm-users.repository';
@@ -33,6 +35,8 @@ import { BcryptPasswordHasher } from './infrastructure/services/bcrypt-password-
     ListUsers,
     UpdateUser,
     BootstrapFirstAdmin,
+    SeedInitialAdmin,
+    UsersBootstrapService,
   ],
   exports: [FindUserByUsername, PASSWORD_HASHER, USERS_REPOSITORY],
 })
