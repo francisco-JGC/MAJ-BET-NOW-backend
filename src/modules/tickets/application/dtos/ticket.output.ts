@@ -35,9 +35,12 @@ export interface TicketOutput {
   /**
    * Premio efectivamente ganado por el ticket, evaluado contra el
    * `draw_result` correspondiente. 0 si el sorteo aún no se ejecutó o
-   * si el ticket no salió ganador. Reemplaza el concepto de "pagado".
+   * si el ticket no salió ganador.
    */
   wonPrize: number;
+  /** Marca visual de pago — no afecta cálculos de pérdida ni listados. */
+  isPaid: boolean;
+  paidAt: Date | null;
   lines: TicketLineOutput[];
   createdAt: Date;
   updatedAt: Date;
@@ -66,6 +69,8 @@ export const toTicketOutput = (
   cutoffMinutes: ticket.cutoffMinutes,
   drawExecuted,
   wonPrize,
+  isPaid: ticket.isPaid,
+  paidAt: ticket.paidAt,
   lines: ticket.lines.map((line) => ({
     label: line.label,
     amount: line.amount,
