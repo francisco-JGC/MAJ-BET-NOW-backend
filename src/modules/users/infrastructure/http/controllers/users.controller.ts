@@ -20,12 +20,14 @@ import {
   ListUsers,
   type ListUsersOutput,
 } from '../../../application/use-cases/list-users.use-case';
+import { UpdateMobileSalesProfile } from '../../../application/use-cases/update-mobile-sales-profile.use-case';
 import { UpdateUser } from '../../../application/use-cases/update-user.use-case';
 import { UserOutput } from '../../../application/dtos/user.output';
 import { UserRole } from '../../../domain/value-objects/user-role';
 import { BootstrapAdminHttpDto } from '../dtos/bootstrap-admin-http.dto';
 import { CreateUserHttpDto } from '../dtos/create-user-http.dto';
 import { ListUsersQueryDto } from '../dtos/list-users-query.dto';
+import { UpdateMobileSalesProfileHttpDto } from '../dtos/update-mobile-sales-profile-http.dto';
 import { UpdateUserHttpDto } from '../dtos/update-user-http.dto';
 
 @Controller('users')
@@ -36,6 +38,7 @@ export class UsersController {
     private readonly listUsers: ListUsers,
     private readonly updateUser: UpdateUser,
     private readonly bootstrapFirstAdmin: BootstrapFirstAdmin,
+    private readonly updateMobileSalesProfile: UpdateMobileSalesProfile,
   ) {}
 
   @Post('bootstrap')
@@ -70,6 +73,26 @@ export class UsersController {
       search: query.search,
       limit: query.limit ?? 20,
       offset: query.offset ?? 0,
+    });
+  }
+
+  /**
+   * Configura el "Modo vendedor" del admin logueado. Ver
+   * `UpdateMobileSalesProfile`. Vive ANTES de `@Get(':id')` porque
+   * Nest matchea rutas en orden — si estuviera abajo, `'me/mobile-sales'`
+   * caería en el `:id` con id="me" y tiraría 400 por ParseUUIDPipe.
+   */
+  @Patch('me/mobile-sales')
+  @Roles(UserRole.ADMIN)
+  updateMyMobileSales(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateMobileSalesProfileHttpDto,
+  ): Promise<UserOutput> {
+    return this.updateMobileSalesProfile.execute({
+      requesterId: user.id,
+      requesterRole: user.role,
+      mobileSalesEnabled: dto.mobileSalesEnabled,
+      defaultSalePointId: dto.defaultSalePointId ?? null,
     });
   }
 

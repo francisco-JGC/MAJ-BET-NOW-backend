@@ -53,6 +53,29 @@ export class UserOrmEntity {
   @JoinColumn({ name: 'sale_point_id' })
   salePoint?: SalePointOrmEntity | null;
 
+  /**
+   * Toggle del "Modo vendedor" del perfil. Solo relevante para admins;
+   * cuando está true, el admin puede vender desde la app móvil imputando
+   * las ventas a `defaultSalePointId`. Sellers y partners ignoran este
+   * flag.
+   */
+  @Column({ type: 'boolean', name: 'mobile_sales_enabled', default: false })
+  mobileSalesEnabled!: boolean;
+
+  /**
+   * Sucursal a la que se imputan las ventas del admin cuando tiene el
+   * modo vendedor activo. Nullable porque hasta que el admin no elige
+   * una, no puede activar el flag. ON DELETE SET NULL: si borran la
+   * sucursal, la fila del admin sobrevive con `defaultSalePointId=null`
+   * y el flag se debería volver a desactivar en el próximo save.
+   */
+  @Column({ type: 'uuid', name: 'default_sale_point_id', nullable: true })
+  defaultSalePointId!: string | null;
+
+  @ManyToOne(() => SalePointOrmEntity, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'default_sale_point_id' })
+  defaultSalePoint?: SalePointOrmEntity | null;
+
   @Index()
   @Column({ type: 'uuid', name: 'created_by_id', nullable: true })
   createdById!: string | null;

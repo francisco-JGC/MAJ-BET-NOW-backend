@@ -9,6 +9,7 @@ import { FindUserById } from './application/use-cases/find-user-by-id.use-case';
 import { FindUserByUsername } from './application/use-cases/find-user-by-username.use-case';
 import { ListUsers } from './application/use-cases/list-users.use-case';
 import { SeedInitialAdmin } from './application/use-cases/seed-initial-admin.use-case';
+import { UpdateMobileSalesProfile } from './application/use-cases/update-mobile-sales-profile.use-case';
 import { UpdateUser } from './application/use-cases/update-user.use-case';
 import { USERS_REPOSITORY } from './domain/repositories/users.repository';
 import { UsersBootstrapService } from './infrastructure/bootstrap/users-bootstrap.service';
@@ -37,6 +38,7 @@ import { BcryptPasswordHasher } from './infrastructure/services/bcrypt-password-
     BootstrapFirstAdmin,
     SeedInitialAdmin,
     UsersBootstrapService,
+    UpdateMobileSalesProfile,
   ],
   exports: [FindUserByUsername, PASSWORD_HASHER, USERS_REPOSITORY],
 })

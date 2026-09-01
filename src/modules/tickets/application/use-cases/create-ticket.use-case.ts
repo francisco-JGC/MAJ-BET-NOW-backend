@@ -45,6 +45,7 @@ import {
   USERS_REPOSITORY,
   type UsersRepository,
 } from '../../../users/domain/repositories/users.repository';
+import { UserRole } from '../../../users/domain/value-objects/user-role';
 import type { DrawSchedule } from '../../../games/domain/entities/draw-schedule.entity';
 import { Ticket } from '../../domain/entities/ticket.entity';
 
@@ -127,7 +128,22 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
     if (!seller.isActive) {
       throw new ValidationError('Seller access is disabled');
     }
-    if (seller.salePointId !== input.salePointId) {
+    // Reglas de pertenencia por rol:
+    //  - Seller: la sucursal del ticket TIENE que ser su asignada
+    //    estructural (`users.sale_point_id`).
+    //  - Admin en "modo vendedor": la sucursal debe coincidir con la
+    //    que eligió en su perfil (`defaultSalePointId`). Sin el modo
+    //    activo, un admin no puede crear tickets desde la app móvil.
+    //  - Partner: no debería llegar acá; el mobile no le da acceso al
+    //    flujo de venta y este guard es defensivo.
+    const belongsAsSeller =
+      seller.role === UserRole.SELLER &&
+      seller.salePointId === input.salePointId;
+    const belongsAsAdminMobile =
+      seller.role === UserRole.ADMIN &&
+      seller.mobileSalesEnabled &&
+      seller.defaultSalePointId === input.salePointId;
+    if (!belongsAsSeller && !belongsAsAdminMobile) {
       throw new ValidationError('Seller does not belong to this sale point');
     }
 

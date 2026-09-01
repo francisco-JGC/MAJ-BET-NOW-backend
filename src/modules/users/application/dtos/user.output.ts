@@ -12,6 +12,9 @@ export interface UserOutput {
   nationalId: string | null;
   paymentPercentage: number | null;
   salePointId: string | null;
+  /** Modo vendedor del admin (ver `UpdateMobileSalesProfile`). */
+  mobileSalesEnabled: boolean;
+  defaultSalePointId: string | null;
   createdById: string | null;
   createdByName: string | null;
   createdAt: Date;
@@ -32,6 +35,8 @@ export const toUserOutput = (
   nationalId: user.nationalId,
   paymentPercentage: user.paymentPercentage,
   salePointId: user.salePointId,
+  mobileSalesEnabled: user.mobileSalesEnabled,
+  defaultSalePointId: user.defaultSalePointId,
   createdById: user.createdById,
   createdByName,
   createdAt: user.createdAt,

@@ -32,8 +32,21 @@ export class ListSalePointsForUser
 
   async execute(userId: string): Promise<SalePointOutput[]> {
     const user = await this.users.findById(userId);
-    if (!user || !user.salePointId) return [];
-    const salePoint = await this.salePoints.findById(user.salePointId);
+    if (!user) return [];
+
+    // Resolvemos la sucursal según el rol:
+    //  - Seller: la asignada estructuralmente (`users.salePointId`).
+    //  - Admin con Modo vendedor activo: la elegida en su perfil
+    //    (`defaultSalePointId`). Un admin sin modo vendedor no accede
+    //    al flujo de venta y ve lista vacía, igual que hoy.
+    //  - Partner: no vende desde el mobile — lista vacía.
+    const effectiveSalePointId =
+      user.mobileSalesEnabled && user.defaultSalePointId !== null
+        ? user.defaultSalePointId
+        : user.salePointId;
+    if (!effectiveSalePointId) return [];
+
+    const salePoint = await this.salePoints.findById(effectiveSalePointId);
     // Si la sucursal fue desactivada, no debe aparecer para el vendedor
     // (no puede seguir vendiendo desde una sucursal cerrada). El cliente
     // móvil interpreta lista vacía como "sin sucursal asignada".
