@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
   In,
+  IsNull,
   LessThanOrEqual,
   MoreThanOrEqual,
   Repository,
@@ -64,21 +65,39 @@ export class TypeOrmMovementsRepository implements MovementsRepository {
 
   private buildWhere(
     filters: FindMovementsFilters,
-  ): FindOptionsWhere<MovementOrmEntity> {
-    const where: FindOptionsWhere<MovementOrmEntity> = {};
-    if (filters.salePointId) {
-      where.salePointId = filters.salePointId;
-    } else if (filters.salePointIds && filters.salePointIds.length > 0) {
-      where.salePointId = In(filters.salePointIds);
-    }
-    if (filters.type) where.type = filters.type;
+  ): FindOptionsWhere<MovementOrmEntity> | FindOptionsWhere<MovementOrmEntity>[] {
+    const base: FindOptionsWhere<MovementOrmEntity> = {};
+    if (filters.type) base.type = filters.type;
+    if (filters.sellerId) base.sellerId = filters.sellerId;
     if (filters.from && filters.to) {
-      where.occurredAt = Between(filters.from, filters.to);
+      base.occurredAt = Between(filters.from, filters.to);
     } else if (filters.from) {
-      where.occurredAt = MoreThanOrEqual(filters.from);
+      base.occurredAt = MoreThanOrEqual(filters.from);
     } else if (filters.to) {
-      where.occurredAt = LessThanOrEqual(filters.to);
+      base.occurredAt = LessThanOrEqual(filters.to);
     }
-    return where;
+
+    if (filters.salePointId) {
+      // Specific sucursal filter — exact match, no NULLs.
+      return { ...base, salePointId: filters.salePointId };
+    }
+
+    // When filtering by seller, skip salePointId scoping entirely.
+    if (filters.sellerId) {
+      return base;
+    }
+
+    if (filters.salePointIds && filters.salePointIds.length > 0) {
+      if (filters.includeNullSalePoint) {
+        // OR: salePointId IN (...) OR salePointId IS NULL
+        return [
+          { ...base, salePointId: In(filters.salePointIds) },
+          { ...base, salePointId: IsNull() },
+        ];
+      }
+      return { ...base, salePointId: In(filters.salePointIds) };
+    }
+
+    return base;
   }
 }

@@ -14,6 +14,7 @@ export interface ListMovementsInput {
   requesterId: string;
   requesterRole: UserRole;
   salePointId?: string;
+  sellerId?: string;
   type?: MovementType;
   from?: Date;
   to?: Date;
@@ -54,7 +55,11 @@ export class ListMovements
 
     const filters = {
       salePointId: input.salePointId,
+      sellerId: input.sellerId,
       salePointIds: accessible,
+      // Include seller movements (salePointId IS NULL) only when not filtering
+      // by a specific sale point — otherwise the sucursal filter should be exact.
+      includeNullSalePoint: !input.salePointId,
       type: input.type,
       from: input.from,
       to: input.to,

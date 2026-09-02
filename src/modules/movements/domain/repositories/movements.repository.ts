@@ -5,8 +5,14 @@ export const MOVEMENTS_REPOSITORY = Symbol('MOVEMENTS_REPOSITORY');
 
 export interface FindMovementsFilters {
   salePointId?: string;
+  sellerId?: string;
   /** Restrict to movements in these sucursales (partner scoping). Empty = no rows. */
   salePointIds?: string[];
+  /**
+   * When true and no specific salePointId filter is active, also include
+   * seller-level movements (salePointId IS NULL).
+   */
+  includeNullSalePoint?: boolean;
   type?: MovementType;
   /** Filter by `occurred_at` inclusive. */
   from?: Date;
