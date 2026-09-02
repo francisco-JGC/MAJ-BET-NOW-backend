@@ -10,6 +10,10 @@ import {
   SALE_POINTS_REPOSITORY,
   type SalePointsRepository,
 } from '../../../sale-points/domain/repositories/sale-points.repository';
+import {
+  USERS_REPOSITORY,
+  type UsersRepository,
+} from '../../../users/domain/repositories/users.repository';
 import { UserRole } from '../../../users/domain/value-objects/user-role';
 import {
   TICKETS_REPOSITORY,
@@ -31,6 +35,7 @@ export class FindTicketById implements UseCase<FindTicketByIdInput, TicketOutput
     private readonly drawResults: DrawResultsRepository,
     @Inject(SALE_POINTS_REPOSITORY)
     private readonly salePoints: SalePointsRepository,
+    @Inject(USERS_REPOSITORY) private readonly users: UsersRepository,
   ) {}
 
   async execute(input: FindTicketByIdInput): Promise<TicketOutput> {
@@ -44,11 +49,18 @@ export class FindTicketById implements UseCase<FindTicketByIdInput, TicketOutput
       throw new NotFoundError('Ticket', input.id);
     }
 
-    // Resolvemos ambos en paralelo — son lookups independientes.
-    const [executed, salePoint] = await Promise.all([
+    // Resolvemos los tres en paralelo — lookups independientes.
+    const [executed, salePoint, seller] = await Promise.all([
       this.drawResults.findByGameAndDraw(ticket.gameId, ticket.drawAt),
       this.salePoints.findById(ticket.salePointId),
+      this.users.findById(ticket.sellerId),
     ]);
-    return toTicketOutput(ticket, executed !== null, 0, salePoint?.name ?? null);
+    return toTicketOutput(
+      ticket,
+      executed !== null,
+      0,
+      salePoint?.name ?? null,
+      seller?.name ?? null,
+    );
   }
 }

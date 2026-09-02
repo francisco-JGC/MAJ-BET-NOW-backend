@@ -22,6 +22,8 @@ export interface TicketOutput {
    */
   salePointName: string | null;
   sellerId: string;
+  /** Nombre del vendedor. Solo se resuelve en el detail — null en listados. */
+  sellerName: string | null;
   client: string | null;
   status: TicketStatus;
   voidedAt: Date | null;
@@ -51,6 +53,7 @@ export const toTicketOutput = (
   drawExecuted = false,
   wonPrize = 0,
   salePointName: string | null = null,
+  sellerName: string | null = null,
 ): TicketOutput => ({
   id: ticket.id,
   folio: ticket.folio,
@@ -58,6 +61,7 @@ export const toTicketOutput = (
   salePointId: ticket.salePointId,
   salePointName,
   sellerId: ticket.sellerId,
+  sellerName,
   client: ticket.client,
   status: ticket.status,
   voidedAt: ticket.voidedAt,
