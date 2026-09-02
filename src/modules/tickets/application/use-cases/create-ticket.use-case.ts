@@ -165,6 +165,7 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
     // regla que aplica el móvil en `GameLockController._buildWindows`;
     // vive acá también para que un curl no pueda saltearse la restricción.
     await this.enforceNightlyLock(input.gameId);
+    await this.enforceCutoffWindow(input.gameId);
 
     const draw = input.drawAt
       ? await this.validateExplicitDraw(input.gameId, input.drawAt)
@@ -224,6 +225,60 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
       anyErr.constraint === 'IDX_tickets_client_request_id' ||
       (anyErr.message ?? '').includes('client_request_id')
     );
+  }
+
+  /**
+   * Rechaza si `now` cae dentro de la ventana de bloqueo de cualquier sorteo
+   * del juego: desde `drawAt - cutoffMinutes` hasta `drawAt + 3 min` (gracia).
+   * Espeja la lógica del móvil en `GameLockController._buildWindows`.
+   *
+   * Sin este check, el path auto-resolve (`resolveNextDraw`) asignaba el
+   * boleto al SIGUIENTE sorteo disponible en vez de rechazarlo — el vendedor
+   * no recibía error y el boleto quedaba en el sorteo equivocado.
+   */
+  private async enforceCutoffWindow(gameId: string): Promise<void> {
+    const schedules = (await this.schedules.findByGameId(gameId)).filter(
+      (s) => s.isActive,
+    );
+    if (schedules.length === 0) return;
+
+    const now = new Date();
+    const nowBiz = toBusinessWallClock(now);
+
+    // Revisamos hoy y ayer en hora de negocio para cubrir ventanas que
+    // cruzan medianoche (ej. sorteo a las 23:58 con 5 min de gracia).
+    const todayMidnight = fromBusinessWallClock(
+      nowBiz.year,
+      nowBiz.month,
+      nowBiz.day,
+      0,
+      0,
+    );
+    const yesterdayBiz = toBusinessWallClock(
+      new Date(todayMidnight.getTime() - MS_PER_DAY),
+    );
+
+    for (const checkDay of [nowBiz, yesterdayBiz]) {
+      for (const s of schedules) {
+        if (!s.appliesTo(checkDay.dayOfWeek)) continue;
+        const minutes = parseHhmmToMinutes(s.drawTime);
+        const drawAt = fromBusinessWallClock(
+          checkDay.year,
+          checkDay.month,
+          checkDay.day,
+          Math.floor(minutes / 60),
+          minutes % 60,
+        );
+        const lockStart = new Date(drawAt.getTime() - s.cutoffMinutes * 60_000);
+        const lockEnd = new Date(drawAt.getTime() + POST_DRAW_GRACE_MS);
+        if (now >= lockStart && now < lockEnd) {
+          const phase = now < drawAt ? 'cutoff previo al sorteo' : 'período de gracia post-sorteo';
+          throw new ValidationError(
+            `El juego está bloqueado (${phase}). No se pueden crear boletos en este momento.`,
+          );
+        }
+      }
+    }
   }
 
   /**
