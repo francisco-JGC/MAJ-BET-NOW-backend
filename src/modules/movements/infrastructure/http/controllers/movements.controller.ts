@@ -97,6 +97,7 @@ export class MovementsController {
   }
 
   @Get('seller-balance')
+  @Roles(UserRole.ADMIN, UserRole.PARTNER, UserRole.SELLER)
   sellerBalance(
     @CurrentUser() user: RequestUser,
     @Query() query: SellerMovementsBalanceQueryDto,
