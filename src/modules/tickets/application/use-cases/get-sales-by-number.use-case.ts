@@ -18,6 +18,7 @@ export interface GetSalesByNumberInput {
   sellerId?: string;
   from?: Date;
   to?: Date;
+  drawAt?: Date;
 }
 
 /**
@@ -79,6 +80,7 @@ export class GetSalesByNumber
         AND ($4::uuid IS NULL OR t.seller_id     = $4::uuid)
         AND ($5::timestamptz IS NULL OR t.created_at >= $5::timestamptz)
         AND ($6::timestamptz IS NULL OR t.created_at <  $6::timestamptz)
+        AND ($7::timestamptz IS NULL OR t.draw_at    = $7::timestamptz)
       GROUP BY t.game_id, g.name, tl.label
       ORDER BY total_amount DESC, ticket_count DESC
       LIMIT 2000
@@ -90,6 +92,7 @@ export class GetSalesByNumber
         effectiveSellerId ?? null,
         input.from ?? null,
         input.to ?? null,
+        input.drawAt ?? null,
       ],
     );
 

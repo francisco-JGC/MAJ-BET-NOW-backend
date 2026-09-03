@@ -20,4 +20,8 @@ export class SalesByNumberQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+
+  @IsOptional()
+  @IsDateString()
+  drawAt?: string;
 }
