@@ -8,6 +8,7 @@ export interface SaleLimitByNumberRow {
   gameId: string;
   label: string;
   amount: number;
+  minAmount: number | null;
 }
 
 export interface SaleLimitsByNumberRepository {
@@ -22,11 +23,11 @@ export interface SaleLimitsByNumberRepository {
   delete(id: string): Promise<void>;
   /**
    * Bulk fetch para la enforce logic al crear tickets: dado (sp, game),
-   * devuelve un map `label -> amount` para todos los overrides existentes.
-   * Vacío si no hay ninguno.
+   * devuelve un map `label -> { amount, minAmount }` para todos los
+   * overrides existentes. Vacío si no hay ninguno.
    */
   mapForGame(
     salePointId: string,
     gameId: string,
-  ): Promise<Map<string, number>>;
+  ): Promise<Map<string, { amount: number; minAmount: number | null }>>;
 }

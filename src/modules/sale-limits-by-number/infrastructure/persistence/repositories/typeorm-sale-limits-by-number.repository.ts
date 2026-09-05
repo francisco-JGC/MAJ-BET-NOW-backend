@@ -51,11 +51,13 @@ export class TypeOrmSaleLimitsByNumberRepository
   async mapForGame(
     salePointId: string,
     gameId: string,
-  ): Promise<Map<string, number>> {
+  ): Promise<Map<string, { amount: number; minAmount: number | null }>> {
     const rows = await this.repo.find({
       where: { salePointId, gameId },
-      select: { label: true, amount: true },
+      select: { label: true, amount: true, minAmount: true },
     });
-    return new Map(rows.map((r) => [r.label, r.amount]));
+    return new Map(
+      rows.map((r) => [r.label, { amount: r.amount, minAmount: r.minAmount }]),
+    );
   }
 }

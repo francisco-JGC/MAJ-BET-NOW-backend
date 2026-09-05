@@ -14,6 +14,7 @@ export interface SaleLimitByNumberProps {
    */
   label: string;
   amount: number;
+  minAmount: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,14 +29,16 @@ export class SaleLimitByNumber extends AggregateRoot<SaleLimitByNumberProps> {
     gameId: string;
     label: string;
     amount: number;
+    minAmount?: number | null;
   }): SaleLimitByNumber {
-    SaleLimitByNumber.assertValid(input.label, input.amount);
+    SaleLimitByNumber.assertValid(input.label, input.amount, input.minAmount ?? null);
     const now = new Date();
     return new SaleLimitByNumber(randomUUID(), {
       salePointId: input.salePointId,
       gameId: input.gameId,
       label: input.label.trim(),
       amount: input.amount,
+      minAmount: input.minAmount ?? null,
       createdAt: now,
       updatedAt: now,
     });
@@ -54,6 +57,14 @@ export class SaleLimitByNumber extends AggregateRoot<SaleLimitByNumberProps> {
     this.props.updatedAt = new Date();
   }
 
+  setMinAmount(minAmount: number | null): void {
+    if (minAmount !== null) {
+      SaleLimitByNumber.assertAmount(minAmount);
+    }
+    this.props.minAmount = minAmount;
+    this.props.updatedAt = new Date();
+  }
+
   get salePointId(): string {
     return this.props.salePointId;
   }
@@ -66,6 +77,9 @@ export class SaleLimitByNumber extends AggregateRoot<SaleLimitByNumberProps> {
   get amount(): number {
     return this.props.amount;
   }
+  get minAmount(): number | null {
+    return this.props.minAmount;
+  }
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -73,7 +87,7 @@ export class SaleLimitByNumber extends AggregateRoot<SaleLimitByNumberProps> {
     return this.props.updatedAt;
   }
 
-  private static assertValid(label: string, amount: number): void {
+  private static assertValid(label: string, amount: number, minAmount: number | null): void {
     if (!label || label.trim().length === 0) {
       throw new ValidationError('label must not be empty');
     }
@@ -81,6 +95,9 @@ export class SaleLimitByNumber extends AggregateRoot<SaleLimitByNumberProps> {
       throw new ValidationError('label must be at most 40 characters');
     }
     SaleLimitByNumber.assertAmount(amount);
+    if (minAmount !== null) {
+      SaleLimitByNumber.assertAmount(minAmount);
+    }
   }
 
   private static assertAmount(amount: number): void {

@@ -444,6 +444,17 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
       this.saleLimitsByNumber.mapForGame(salePointId, gameId),
     ]);
 
+    // Monto mínimo por número: si está configurado, cada línea individual
+    // debe alcanzarlo. Se valida antes de cualquier check de tope máximo.
+    for (const line of lines) {
+      const cfg = perNumberMap.get(line.label);
+      if (cfg?.minAmount != null && line.amount < cfg.minAmount) {
+        throw new ValidationError(
+          `El monto mínimo para el número "${line.label}" es C$${cfg.minAmount}. Apostaste C$${line.amount}.`,
+        );
+      }
+    }
+
     // Compound this ticket's own repeated labels into a single request.
     const requestedByLabel = new Map<string, number>();
     for (const line of lines) {
@@ -553,7 +564,7 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
       // Vendedor SIN cuota: pool sobrante = tope − suma_cuotas_asignadas.
       const specific = perNumberMap.get(label);
       const effectiveLimit =
-        specific !== undefined ? specific : generalLimit?.amount ?? null;
+        specific !== undefined ? specific.amount : generalLimit?.amount ?? null;
       if (effectiveLimit === null) continue;
 
       const totalAssigned = Array.from(quotasForLabel?.values() ?? []).reduce(
