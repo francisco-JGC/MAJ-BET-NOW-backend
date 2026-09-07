@@ -13,6 +13,10 @@ import {
 } from '../../../games/domain/repositories/games.repository';
 import { PartnerScopeService } from '../../../sale-points/application/services/partner-scope.service';
 import {
+  SALE_POINTS_REPOSITORY,
+  type SalePointsRepository,
+} from '../../../sale-points/domain/repositories/sale-points.repository';
+import {
   USERS_REPOSITORY,
   type UsersRepository,
 } from '../../../users/domain/repositories/users.repository';
@@ -58,6 +62,8 @@ export class ListWinningTickets
     @Inject(DRAW_RESULTS_REPOSITORY)
     private readonly results: DrawResultsRepository,
     @Inject(USERS_REPOSITORY) private readonly users: UsersRepository,
+    @Inject(SALE_POINTS_REPOSITORY)
+    private readonly salePoints: SalePointsRepository,
     private readonly evaluator: TicketEvaluator,
     private readonly scope: PartnerScopeService,
   ) {}
@@ -131,6 +137,10 @@ export class ListWinningTickets
     const sellerNameById = new Map<string, string>();
     for (const u of sellerUsers) sellerNameById.set(u.id, u.name);
 
+    const allSalePoints = await this.salePoints.findAll({ includeInactive: true });
+    const salePointNameById = new Map<string, string>();
+    for (const sp of allSalePoints) salePointNameById.set(sp.id, sp.name);
+
     const winners: WinningTicketOutput[] = [];
     for (const ticket of items) {
       const game = gamesById.get(ticket.gameId) ?? null;
@@ -143,7 +153,7 @@ export class ListWinningTickets
           ticket,
           true,
           evaluation.totalPrize,
-          null,
+          salePointNameById.get(ticket.salePointId) ?? null,
           sellerNameById.get(ticket.sellerId) ?? null,
         ),
         totalPrize: evaluation.totalPrize,
