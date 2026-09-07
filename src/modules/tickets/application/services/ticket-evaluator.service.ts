@@ -126,8 +126,14 @@ export class TicketEvaluator {
     switch (gameType) {
       case GameType.REGULAR:
       case GameType.FOUR_DIGIT:
-      case GameType.DATE:
         return this.normalizeLabel(label) === winningNumber.toLowerCase();
+      case GameType.DATE: {
+        // Ticket labels use space ("01 ene"); winning numbers use dash ("01-ene").
+        // Normalize both to dash before comparing.
+        const normalize = (s: string) =>
+          s.trim().toLowerCase().replace(/\s+/g, '-');
+        return normalize(label) === normalize(winningNumber);
+      }
       case GameType.THREE_DIGIT: {
         const isFalso = /\(F\)/i.test(label);
         const digits = label.replace(/\(F\)/i, '').trim();
