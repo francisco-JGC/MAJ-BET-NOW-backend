@@ -66,6 +66,7 @@ export class User extends AggregateRoot<UserProps> {
   }
 
   update(patch: {
+    username?: string;
     name?: string;
     role?: UserRole;
     isActive?: boolean;
@@ -78,6 +79,7 @@ export class User extends AggregateRoot<UserProps> {
     defaultSalePointId?: string | null;
     hashedPassword?: string;
   }): void {
+    if (patch.username !== undefined) this.props.username = patch.username;
     if (patch.name !== undefined) this.props.name = patch.name;
     if (patch.role !== undefined) this.props.role = patch.role;
     if (patch.isActive !== undefined) this.props.isActive = patch.isActive;

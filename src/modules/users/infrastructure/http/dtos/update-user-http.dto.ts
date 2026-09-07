@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
@@ -20,6 +21,13 @@ import { UserRole } from '../../../domain/value-objects/user-role';
  * a non-empty string is provided.
  */
 export class UpdateUserHttpDto {
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MinLength(3)
+  @MaxLength(60)
+  username?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(120)
