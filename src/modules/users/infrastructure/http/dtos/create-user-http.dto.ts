@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
@@ -14,6 +15,7 @@ import {
 import { UserRole } from '../../../domain/value-objects/user-role';
 
 export class CreateUserHttpDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
