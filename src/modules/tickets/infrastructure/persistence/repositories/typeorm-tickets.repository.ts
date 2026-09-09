@@ -8,7 +8,7 @@ import {
   Raw,
   Repository,
 } from 'typeorm';
-import type { FindOptionsWhere } from 'typeorm';
+import type { FindOptionsWhere, SelectQueryBuilder } from 'typeorm';
 
 import { BUSINESS_TZ } from '../../../../../shared/domain/business-time';
 import type { Ticket } from '../../../domain/entities/ticket.entity';
@@ -56,12 +56,25 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
   async findMany(filters: FindTicketsFilters): Promise<Ticket[]> {
     // Partner scoping with an empty allow-list means "nothing accessible".
     if (filters.salePointIds && filters.salePointIds.length === 0) return [];
-    const rows = await this.repo.find({
-      where: this.buildWhere(filters),
-      order: { createdAt: 'DESC' },
-      take: filters.limit,
-      skip: filters.offset,
-    });
+
+    // Use QueryBuilder with explicit LEFT JOIN instead of repo.find() so that
+    // TypeORM does NOT use its two-phase eager-loading strategy (get IDs first,
+    // then WHERE id IN (…)). That strategy generates a bind message with
+    // N format codes but 0 parameter values when N is large — a pg driver bug
+    // triggered by high `take` limits (e.g. 100 000 for the winning-tickets
+    // and balance use-cases), causing PostgreSQL to reject with
+    // "bind message has N parameter formats but 0 parameters".
+    const qb = this.repo
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.lines', 'lines')
+      .orderBy('t.createdAt', 'DESC');
+
+    if (filters.limit !== undefined) qb.take(filters.limit);
+    if (filters.offset !== undefined) qb.skip(filters.offset);
+
+    this.applyWhereToQb(qb, filters);
+
+    const rows = await qb.getMany();
     return rows.map((row) => TicketMapper.toDomain(row));
   }
 
@@ -129,5 +142,61 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
         }),
       },
     ];
+  }
+
+  private applyWhereToQb(
+    qb: SelectQueryBuilder<TicketOrmEntity>,
+    filters: FindTicketsFilters,
+  ): void {
+    if (filters.sellerId) {
+      qb.andWhere('t.sellerId = :sellerId', { sellerId: filters.sellerId });
+    }
+    if (filters.salePointId) {
+      qb.andWhere('t.salePointId = :salePointId', {
+        salePointId: filters.salePointId,
+      });
+    } else if (filters.salePointIds && filters.salePointIds.length > 0) {
+      qb.andWhere('t.salePointId IN (:...salePointIds)', {
+        salePointIds: filters.salePointIds,
+      });
+    }
+    if (filters.gameId) {
+      qb.andWhere('t.gameId = :gameId', { gameId: filters.gameId });
+    }
+    if (filters.status) {
+      qb.andWhere('t.status = :status', { status: filters.status });
+    }
+    if (filters.drawFrom && filters.drawTo) {
+      qb.andWhere('t.drawAt BETWEEN :drawFrom AND :drawTo', {
+        drawFrom: filters.drawFrom,
+        drawTo: filters.drawTo,
+      });
+    } else if (filters.drawFrom) {
+      qb.andWhere('t.drawAt >= :drawFrom', { drawFrom: filters.drawFrom });
+    } else if (filters.drawTo) {
+      qb.andWhere('t.drawAt <= :drawTo', { drawTo: filters.drawTo });
+    } else if (filters.from && filters.to) {
+      qb.andWhere('t.createdAt BETWEEN :from AND :to', {
+        from: filters.from,
+        to: filters.to,
+      });
+    } else if (filters.from) {
+      qb.andWhere('t.createdAt >= :from', { from: filters.from });
+    } else if (filters.to) {
+      qb.andWhere('t.createdAt <= :to', { to: filters.to });
+    }
+    if (filters.drawTime) {
+      qb.andWhere(
+        `to_char(t.drawAt AT TIME ZONE '${BUSINESS_TZ}', 'HH24:MI') = :drawTime`,
+        { drawTime: filters.drawTime },
+      );
+    }
+    const term = filters.search?.trim();
+    if (term) {
+      qb.andWhere('(t.folio ILIKE :folioTerm OR t.client ILIKE :clientTerm)', {
+        folioTerm: `${term}%`,
+        clientTerm: `%${term}%`,
+      });
+    }
   }
 }
