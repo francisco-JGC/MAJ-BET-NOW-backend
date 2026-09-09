@@ -39,4 +39,15 @@ export interface SaleLimitsBySellerNumberRepository {
     gameId: string,
     label: string,
   ): Promise<number | null>;
+  /**
+   * Cuotas de TODOS los vendedores para un conjunto de labels en un
+   * solo roundtrip. Devuelve `label -> (sellerId -> amount)`. Reemplaza
+   * el bucle de N llamadas a `quotasFor` en create-ticket — crítico para
+   * rendimiento bajo carga concurrente (500 vendedores).
+   */
+  quotasForLabels(
+    salePointId: string,
+    gameId: string,
+    labels: string[],
+  ): Promise<Map<string, Map<string, number>>>;
 }

@@ -43,22 +43,29 @@ export class ResolveNextDraw
     if (!game) throw new NotFoundError('Game', input.gameId);
 
     const all = await this.schedules.findByGameId(input.gameId);
-    const active = all.filter((s) => s.isActive);
+    return this.resolveFromData(game, all, input.at);
+  }
+
+  /**
+   * Versión sincrónica que opera sobre datos ya cargados. Úsala desde
+   * `CreateTicket` cuando game y schedules ya se cargaron en el bloque
+   * inicial `Promise.all` — evita 2 roundtrips adicionales a la DB.
+   */
+  resolveFromData(
+    game: { slug: string },
+    allSchedules: DrawSchedule[],
+    at: Date,
+  ): ResolveNextDrawOutput {
+    const active = allSchedules.filter((s) => s.isActive);
     if (active.length === 0) {
       throw new ValidationError(
         `Game "${game.slug}" has no active draw schedules`,
       );
     }
 
-    // Anchor everything to the BUSINESS_TZ wall clock so the DOW / cutoff /
-    // draw instant we return are consistent regardless of process timezone.
-    const nowWall = toBusinessWallClock(input.at);
+    const nowWall = toBusinessWallClock(at);
     const nowMinutes = nowWall.hour * 60 + nowWall.minute;
 
-    // If every active schedule is pinned to a specific day-of-week (none are
-    // null = "daily"), this game only runs on certain days.  When today is not
-    // one of those days, reject immediately instead of returning a draw from a
-    // future week — ticket sales are only allowed on the scheduled day itself.
     const allDaySpecific = active.every((s) => s.dayOfWeek !== null);
     if (allDaySpecific && !active.some((s) => s.appliesTo(nowWall.dayOfWeek))) {
       throw new ValidationError(
@@ -67,11 +74,7 @@ export class ResolveNextDraw
     }
 
     for (let offset = 0; offset <= LOOK_AHEAD_DAYS; offset++) {
-      // For day-specific games, never look beyond today: a draw scheduled for
-      // a future day means we are not in a sale window right now.
       if (offset > 0 && allDaySpecific) break;
-      // Land at noon-ish so we can safely observe the target date's DOW in
-      // BUSINESS_TZ without any DST edge cases at midnight.
       const anchor = fromBusinessWallClock(
         nowWall.year,
         nowWall.month,
@@ -86,11 +89,6 @@ export class ResolveNextDraw
       for (const schedule of candidates) {
         const drawMinutes = schedule.toMinutes();
         const cutoffThreshold = drawMinutes - schedule.cutoffMinutes;
-        // `<` estricto: el minuto exacto del cutoff ya está bloqueado.
-        // Con sorteo a las 21:00 y cutoff de 2 min, cutoffThreshold = 1258
-        // (20:58). Al llegar 20:58, nowMinutes (1258) ya no es < 1258 →
-        // se salta al próximo sorteo. Semántica: "cutoff N min" = bloqueado
-        // desde el instante en que el reloj muestra HH:MM - N min.
         const passesCutoff = offset > 0 || nowMinutes < cutoffThreshold;
         if (!passesCutoff) continue;
 

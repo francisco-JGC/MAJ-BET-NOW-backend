@@ -108,26 +108,30 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
       if (existing) return toTicketOutput(existing);
     }
 
-    const game = await this.games.findById(input.gameId);
-    if (!game) throw new NotFoundError('Game', input.gameId);
-    if (!game.isActive) {
-      throw new ValidationError('Game is not active');
-    }
+    // Carga en paralelo todo lo que es estable durante la request: game,
+    // sucursal, seller, horarios del juego y feature flag de cierre
+    // nocturno. Esto reemplaza 7 roundtrips secuenciales por 1.
+    const [game, salePoint, seller, allSchedules, nightlyLockEnabled] =
+      await Promise.all([
+        this.games.findById(input.gameId),
+        this.salePoints.findById(input.salePointId),
+        this.users.findById(input.sellerId),
+        this.schedules.findByGameId(input.gameId),
+        this.featureFlags.isEnabled('nightly_lock'),
+      ]);
 
-    const salePoint = await this.salePoints.findById(input.salePointId);
+    if (!game) throw new NotFoundError('Game', input.gameId);
+    if (!game.isActive) throw new ValidationError('Game is not active');
+
     if (!salePoint) throw new NotFoundError('SalePoint', input.salePointId);
-    if (!salePoint.isActive) {
-      throw new ValidationError('Sale point is not active');
-    }
+    if (!salePoint.isActive) throw new ValidationError('Sale point is not active');
 
     // A sale point can host multiple sellers. The seller must be assigned
     // to THIS puesto via `users.sale_point_id`. `sale_points.owner_id` is
     // no longer authoritative for ticket creation.
-    const seller = await this.users.findById(input.sellerId);
     if (!seller) throw new NotFoundError('User', input.sellerId);
-    if (!seller.isActive) {
-      throw new ValidationError('Seller access is disabled');
-    }
+    if (!seller.isActive) throw new ValidationError('Seller access is disabled');
+
     // Reglas de pertenencia por rol:
     //  - Seller: la sucursal del ticket TIENE que ser su asignada
     //    estructural (`users.sale_point_id`).
@@ -160,19 +164,14 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
         }),
     );
 
-    // Cierre nocturno: después del último sorteo del día, el juego queda
-    // bloqueado hasta las 06:00 (Managua) del día siguiente. Espeja la
-    // regla que aplica el móvil en `GameLockController._buildWindows`;
-    // vive acá también para que un curl no pueda saltearse la restricción.
-    await this.enforceNightlyLock(input.gameId);
-    await this.enforceCutoffWindow(input.gameId);
+    // Cierre nocturno y ventana de cutoff usan los schedules ya cargados
+    // — sin roundtrips adicionales.
+    this.enforceNightlyLockSync(allSchedules, nightlyLockEnabled);
+    this.enforceCutoffWindowSync(allSchedules);
 
     const draw = input.drawAt
-      ? await this.validateExplicitDraw(input.gameId, input.drawAt)
-      : await this.resolveNextDraw.execute({
-          gameId: input.gameId,
-          at: new Date(),
-        });
+      ? this.validateExplicitDrawSync(allSchedules, input.drawAt)
+      : this.resolveNextDraw.resolveFromData(game, allSchedules, new Date());
 
     // Enforce per-number sales cap. If admin/partner configured a limit
     // for this (game, sucursal), each `label` in this ticket must fit
@@ -184,6 +183,7 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
       draw.drawAt,
       lines,
     );
+
 
     const ticket = Ticket.create({
       folio: this.folio.generate(),
@@ -228,25 +228,16 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
   }
 
   /**
-   * Rechaza si `now` cae dentro de la ventana de bloqueo de cualquier sorteo
-   * del juego: desde `drawAt - cutoffMinutes` hasta `drawAt + 3 min` (gracia).
-   * Espeja la lógica del móvil en `GameLockController._buildWindows`.
-   *
-   * Sin este check, el path auto-resolve (`resolveNextDraw`) asignaba el
-   * boleto al SIGUIENTE sorteo disponible en vez de rechazarlo — el vendedor
-   * no recibía error y el boleto quedaba en el sorteo equivocado.
+   * Rechaza si `now` cae dentro de la ventana de bloqueo de cualquier sorteo.
+   * Versión sincrónica — usa schedules ya cargados en el bloque inicial.
    */
-  private async enforceCutoffWindow(gameId: string): Promise<void> {
-    const schedules = (await this.schedules.findByGameId(gameId)).filter(
-      (s) => s.isActive,
-    );
+  private enforceCutoffWindowSync(allSchedules: DrawSchedule[]): void {
+    const schedules = allSchedules.filter((s) => s.isActive);
     if (schedules.length === 0) return;
 
     const now = new Date();
     const nowBiz = toBusinessWallClock(now);
 
-    // Revisamos hoy y ayer en hora de negocio para cubrir ventanas que
-    // cruzan medianoche (ej. sorteo a las 23:58 con 5 min de gracia).
     const todayMidnight = fromBusinessWallClock(
       nowBiz.year,
       nowBiz.month,
@@ -282,28 +273,21 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
   }
 
   /**
-   * Rechaza si `now` cae dentro de una ventana nocturna del juego. La
-   * ventana va desde el `lockEnd` del último sorteo del día (drawAt + 3m
-   * de gracia) hasta las 06:00 Managua del día siguiente. Chequeamos
-   * "hoy" y "ayer" (biz-day) porque la ventana cruza medianoche — la
-   * relevante es la del día cuyo último sorteo ya pasó.
-   *
-   * Gate por feature flag `nightly_lock`: cuando el admin la apaga desde
-   * el panel web (típicamente para pruebas), esta validación es un no-op.
+   * Rechaza si `now` cae dentro de una ventana nocturna del juego.
+   * Versión sincrónica — usa schedules y el valor del feature flag ya
+   * cargados en el bloque inicial `Promise.all`.
    */
-  private async enforceNightlyLock(gameId: string): Promise<void> {
-    const enabled = await this.featureFlags.isEnabled('nightly_lock');
+  private enforceNightlyLockSync(
+    allSchedules: DrawSchedule[],
+    enabled: boolean,
+  ): void {
     if (!enabled) return;
 
-    const schedules = (
-      await this.schedules.findByGameId(gameId)
-    ).filter((s) => s.isActive);
+    const schedules = allSchedules.filter((s) => s.isActive);
     if (schedules.length === 0) return;
 
     const now = new Date();
     const nowBiz = toBusinessWallClock(now);
-    // Día base = hoy si ya pasaron las 06:00; ayer si aún es madrugada.
-    // Con eso cubrimos el caso donde la ventana viene del día anterior.
     const bizMidnight = fromBusinessWallClock(
       nowBiz.year,
       nowBiz.month,
@@ -370,18 +354,15 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
     return last;
   }
 
-  private async validateExplicitDraw(
-    gameId: string,
+  private validateExplicitDrawSync(
+    allSchedules: DrawSchedule[],
     drawAt: Date,
-  ): Promise<{ drawAt: Date; cutoffMinutes: number }> {
-    const schedules = await this.schedules.findByGameId(gameId);
-    const active = schedules.filter((s) => s.isActive);
+  ): { drawAt: Date; cutoffMinutes: number } {
+    const active = allSchedules.filter((s) => s.isActive);
     if (active.length === 0) {
       throw new ValidationError('Game has no active draw schedules');
     }
 
-    // Extract wall-clock in BUSINESS_TZ so schedule matching works
-    // regardless of the server's process timezone.
     const wall = toBusinessWallClock(drawAt);
     const dayOfWeek = wall.dayOfWeek;
     const drawMinutes = wall.hour * 60 + wall.minute;
@@ -466,26 +447,14 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
     const labels = Array.from(requestedByLabel.keys());
     if (labels.length === 0) return;
 
-    // TODAS las cuotas por vendedor de la sucursal para cada label (no
-    // solo la del vendedor actual). Necesitamos el mapa completo para
-    // calcular el "pool sobrante" que comparten los vendedores SIN cuota:
-    //   pool = tope_sucursal − suma_de_cuotas_asignadas
-    // Antes veníamos consultando solo la cuota del vendedor actual y el
-    // check de tope de sucursal miraba `sold_total` (todos los
-    // vendedores), lo que hacía que un vendedor sin cuota le consumiera
-    // la RESERVA a un vendedor con cuota — bug reportado con la sucursal
-    // de C$1200 y vendedora con C$100 que no podía vender aunque otros
-    // hubieran llenado el pool.
-    const quotasByLabel = new Map<string, Map<string, number>>();
-    await Promise.all(
-      labels.map(async (label) => {
-        const quotas = await this.sellerQuotas.quotasFor(
-          salePointId,
-          gameId,
-          label,
-        );
-        quotasByLabel.set(label, quotas);
-      }),
+    // TODAS las cuotas por vendedor de la sucursal para cada label en
+    // un solo roundtrip a la DB (quotasForLabels hace WHERE label = ANY).
+    // Antes era N queries separadas — con 5 números en el boleto eran 5
+    // roundtrips; ahora es 1.
+    const quotasByLabel = await this.sellerQuotas.quotasForLabels(
+      salePointId,
+      gameId,
+      labels,
     );
     const hasAnyQuota = Array.from(quotasByLabel.values()).some(
       (m) => m.size > 0,
