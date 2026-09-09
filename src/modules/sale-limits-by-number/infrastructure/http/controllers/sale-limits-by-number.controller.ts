@@ -55,6 +55,7 @@ export class SaleLimitsByNumberController {
       requesterId: user.id,
       requesterRole: user.role,
       salePointId: query.salePointId,
+      gameId: query.gameId,
     });
   }
 

@@ -27,9 +27,10 @@ export class TypeOrmSaleLimitsBySellerNumberRepository
 
   async findBySalePoint(
     salePointId: string,
+    gameId?: string,
   ): Promise<SaleLimitBySellerNumber[]> {
     const rows = await this.repo.find({
-      where: { salePointId },
+      where: gameId ? { salePointId, gameId } : { salePointId },
       order: { gameId: 'ASC', label: 'ASC', sellerId: 'ASC' },
     });
     return rows.map(SaleLimitBySellerNumberMapper.toDomain);

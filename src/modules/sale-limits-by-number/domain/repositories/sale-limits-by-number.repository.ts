@@ -14,7 +14,7 @@ export interface SaleLimitByNumberRow {
 export interface SaleLimitsByNumberRepository {
   save(entity: SaleLimitByNumber): Promise<void>;
   findById(id: string): Promise<SaleLimitByNumber | null>;
-  findBySalePoint(salePointId: string): Promise<SaleLimitByNumber[]>;
+  findBySalePoint(salePointId: string, gameId?: string): Promise<SaleLimitByNumber[]>;
   findByKey(
     salePointId: string,
     gameId: string,

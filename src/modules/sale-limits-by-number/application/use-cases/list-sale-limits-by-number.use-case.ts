@@ -16,6 +16,7 @@ export interface ListSaleLimitsByNumberInput {
   requesterId: string;
   requesterRole: UserRole;
   salePointId: string;
+  gameId?: string;
 }
 
 @Injectable()
@@ -41,7 +42,7 @@ export class ListSaleLimitsByNumber
         throw new ForbiddenException('Esa sucursal no te pertenece');
       }
     }
-    const list = await this.limits.findBySalePoint(input.salePointId);
+    const list = await this.limits.findBySalePoint(input.salePointId, input.gameId);
     return list.map(toSaleLimitByNumberOutput);
   }
 }

@@ -16,6 +16,7 @@ export interface ListSaleLimitsBySellerNumberInput {
   requesterId: string;
   requesterRole: UserRole;
   salePointId: string;
+  gameId?: string;
 }
 
 @Injectable()
@@ -48,7 +49,7 @@ export class ListSaleLimitsBySellerNumber
       }
     }
 
-    const entities = await this.repo.findBySalePoint(input.salePointId);
+    const entities = await this.repo.findBySalePoint(input.salePointId, input.gameId);
     return entities.map(toSaleLimitBySellerNumberOutput);
   }
 }

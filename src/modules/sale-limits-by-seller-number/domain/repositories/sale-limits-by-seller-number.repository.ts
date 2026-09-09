@@ -13,7 +13,7 @@ export interface SaleLimitsBySellerNumberRepository {
   save(entity: SaleLimitBySellerNumber): Promise<void>;
   findById(id: string): Promise<SaleLimitBySellerNumber | null>;
   /** Todas las cuotas de una sucursal (para la UI de config). */
-  findBySalePoint(salePointId: string): Promise<SaleLimitBySellerNumber[]>;
+  findBySalePoint(salePointId: string, gameId?: string): Promise<SaleLimitBySellerNumber[]>;
   findByKey(
     sellerId: string,
     gameId: string,

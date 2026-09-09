@@ -25,9 +25,9 @@ export class TypeOrmSaleLimitsByNumberRepository
     return row ? SaleLimitByNumberMapper.toDomain(row) : null;
   }
 
-  async findBySalePoint(salePointId: string): Promise<SaleLimitByNumber[]> {
+  async findBySalePoint(salePointId: string, gameId?: string): Promise<SaleLimitByNumber[]> {
     const rows = await this.repo.find({
-      where: { salePointId },
+      where: gameId ? { salePointId, gameId } : { salePointId },
       order: { gameId: 'ASC', label: 'ASC' },
     });
     return rows.map(SaleLimitByNumberMapper.toDomain);
