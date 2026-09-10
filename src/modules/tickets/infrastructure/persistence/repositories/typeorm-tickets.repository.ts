@@ -32,17 +32,9 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
   async save(ticket: Ticket): Promise<void> {
     const orm = TicketMapper.toOrm(ticket);
     await this.repo.manager.transaction(async (manager) => {
-      // Detectamos si el ticket ya existe en la misma transacción, antes
-      // de tocar nada. Las líneas son inmutables: solo se escriben en la
-      // creación; void y payment solo modifican el header.
-      const isNew = !(await manager.existsBy(TicketOrmEntity, { id: orm.id }));
       await manager.save(TicketOrmEntity, orm);
-      if (isNew && orm.lines.length > 0) {
-        // Un solo INSERT … VALUES (…),(…),… para todas las líneas.
-        // manager.save() con un array emitía 1 SELECT + N INSERTs
-        // individuales: para 20 números eran 21 queries extra.
-        await manager.insert(TicketLineOrmEntity, orm.lines);
-      }
+      await manager.delete(TicketLineOrmEntity, { ticketId: orm.id });
+      await manager.save(TicketLineOrmEntity, orm.lines);
     });
   }
 
