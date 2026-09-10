@@ -5,7 +5,6 @@ import {
   NotFoundError,
   ValidationError,
 } from '../../../../shared/domain/errors/domain.error';
-import { ResolveNextDraw } from '../../../games/application/use-cases/resolve-next-draw.use-case';
 import {
   DRAW_RESULTS_REPOSITORY,
   type DrawResultsRepository,
@@ -34,7 +33,6 @@ export class VoidTicket implements UseCase<VoidTicketInput, TicketOutput> {
     @Inject(TICKETS_REPOSITORY) private readonly tickets: TicketsRepository,
     @Inject(DRAW_RESULTS_REPOSITORY)
     private readonly drawResults: DrawResultsRepository,
-    private readonly resolveNextDraw: ResolveNextDraw,
   ) {}
 
   async execute(input: VoidTicketInput): Promise<TicketOutput> {
@@ -64,22 +62,6 @@ export class VoidTicket implements UseCase<VoidTicketInput, TicketOutput> {
     if (input.requesterRole === UserRole.SELLER) {
       if (!ticket.isOwnedBy(input.requesterId)) {
         throw new NotFoundError('Ticket', input.id);
-      }
-
-      // Defensa D: el sorteo que era el "próximo natural" al momento de
-      // crear el ticket no debe haber corrido todavía. Cubre casos donde
-      // `ticket.drawAt` quedó desalineado (bugs históricos de cutoff) y
-      // apunta lejos en el futuro mientras el sorteo real ya se ejecutó,
-      // dejando pasar los checks anteriores. Admin/partner no necesitan
-      // esta defensa — pueden anular manualmente si es un caso legítimo.
-      const intended = await this.resolveNextDraw.execute({
-        gameId: ticket.gameId,
-        at: ticket.createdAt,
-      });
-      if (now.getTime() >= intended.drawAt.getTime()) {
-        throw new ValidationError(
-          'El sorteo original de este ticket ya se corrió, no se puede anular',
-        );
       }
     }
 
