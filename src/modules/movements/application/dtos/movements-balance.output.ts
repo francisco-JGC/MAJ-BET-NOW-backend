@@ -1,14 +1,15 @@
 /**
  * Cash balance per sucursal combining ticket flow (sales - prizes -
  * encargado salary) with manually-registered movements (expenses,
- * deposits, withdrawals). All amounts in centavos.
+ * deposits, withdrawals, adjustments). All amounts in centavos.
  *
  * Formula:
- *   net = billed - wonPrize - partnerSalary + deposits - withdrawals - expenses
+ *   net = billed - wonPrize - partnerSalary + deposits - withdrawals - expenses + adjustments
  *
  * `wonPrize` es la deuda total con los ganadores (evaluada contra draws).
  * `partnerSalary` es el salario del encargado según el % configurado;
  * es un costo real y se descuenta del net.
+ * `adjustments` son correcciones manuales de caja que suman al balance.
  */
 export interface MovementsBalanceRow {
   salePointId: string;
@@ -44,9 +45,11 @@ export interface MovementsBalanceRow {
   withdrawals: number;
   /** Sum of `movements.amount` where type='expense'. */
   expenses: number;
+  /** Sum of `movements.amount` where type='adjustment'. Adds to net. */
+  adjustments: number;
   /**
    * Final cash balance for the range:
-   *   billed - wonPrize - partnerSalary + deposits - withdrawals - expenses
+   *   billed - wonPrize - partnerSalary + deposits - withdrawals - expenses + adjustments
    */
   net: number;
 }
