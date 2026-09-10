@@ -88,7 +88,7 @@ export class GetSellerMovementsBalance
         COALESCE(SUM(CASE WHEN m.type = 'withdrawal' THEN m.amount ELSE 0 END), 0)::bigint AS credits,
         COALESCE(SUM(CASE WHEN m.is_prize_payment = true THEN m.amount ELSE 0 END), 0)::bigint AS prize_payments
       FROM movements m
-      JOIN users u ON u.id = m.seller_id AND u.sale_point_id = ANY($1::uuid[])
+      JOIN users u ON u.id = m.seller_id AND u.sale_point_id = ANY($1::uuid[]) AND u.is_active = true
       WHERE m.seller_id IS NOT NULL
         AND ($2::timestamptz IS NULL OR m.occurred_at >= $2::timestamptz)
         AND ($3::timestamptz IS NULL OR m.occurred_at <  $3::timestamptz)

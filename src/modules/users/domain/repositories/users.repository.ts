@@ -16,6 +16,8 @@ export interface FindUsersOptions {
    * scoping where a partner only sees their own recruits.
    */
   createdById?: string;
+  /** When true, only return active (non-blocked) users. */
+  isActive?: boolean;
   limit: number;
   offset: number;
 }

@@ -180,7 +180,7 @@ export class GetSellerReport
       const one = await this.users.findById(filters.effectiveSellerId);
       // Puede ser null si el ID no existe o si un partner intenta espiar
       // un vendedor fuera de su scope — en ambos casos, sin filas.
-      if (!one) return [];
+      if (!one || !one.isActive) return [];
       // Verificar que respete el sucursal filter.
       if (
         filters.salePointId &&
@@ -206,6 +206,7 @@ export class GetSellerReport
       return this.users.findMany({
         role: UserRole.SELLER,
         salePointIds: [filters.salePointId],
+        isActive: true,
         limit: 1000,
         offset: 0,
       });
@@ -216,6 +217,7 @@ export class GetSellerReport
     return this.users.findMany({
       role: UserRole.SELLER,
       salePointIds: filters.salePointIds,
+      isActive: true,
       limit: 1000,
       offset: 0,
     });
