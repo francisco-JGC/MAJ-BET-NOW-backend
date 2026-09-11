@@ -32,9 +32,17 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
   async save(ticket: Ticket): Promise<void> {
     const orm = TicketMapper.toOrm(ticket);
     await this.repo.manager.transaction(async (manager) => {
+      // existsBy antes del save: las líneas son inmutables — solo se
+      // escriben una vez (en la creación). Void y payment solo modifican
+      // el header del ticket.
+      const isNew = !(await manager.existsBy(TicketOrmEntity, { id: orm.id }));
       await manager.save(TicketOrmEntity, orm);
-      await manager.delete(TicketLineOrmEntity, { ticketId: orm.id });
-      await manager.save(TicketLineOrmEntity, orm.lines);
+      if (isNew && orm.lines.length > 0) {
+        // Un solo INSERT … VALUES (…),(…),… para N líneas en vez de N
+        // INSERTs individuales. Sin cascade en @OneToMany, manager.save
+        // solo toca el header y este insert es la única escritura de líneas.
+        await manager.insert(TicketLineOrmEntity, orm.lines);
+      }
     });
   }
 

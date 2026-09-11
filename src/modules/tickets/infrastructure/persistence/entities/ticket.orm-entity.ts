@@ -92,7 +92,6 @@ export class TicketOrmEntity {
   clientRequestId!: string | null;
 
   @OneToMany(() => TicketLineOrmEntity, (line) => line.ticket, {
-    cascade: true,
     eager: true,
   })
   lines!: TicketLineOrmEntity[];
