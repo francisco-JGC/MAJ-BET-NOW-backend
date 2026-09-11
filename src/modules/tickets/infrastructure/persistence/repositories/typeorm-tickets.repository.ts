@@ -37,7 +37,15 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
       // el header del ticket.
       const isNew = !(await manager.existsBy(TicketOrmEntity, { id: orm.id }));
       await manager.save(TicketOrmEntity, orm);
-      if (isNew && orm.lines.length > 0) {
+      if (isNew) {
+        // Guardia: un ticket nuevo SIEMPRE debe tener líneas. Si orm.lines
+        // está vacío algo falló upstream (mapper roto, domain invariant roto).
+        // Abortar la transacción es mejor que persistir un ticket sin números.
+        if (orm.lines.length === 0) {
+          throw new Error(
+            `Ticket ${orm.id} se creó sin líneas — save abortado para evitar datos corruptos`,
+          );
+        }
         // Un solo INSERT … VALUES (…),(…),… para N líneas en vez de N
         // INSERTs individuales. Sin cascade en @OneToMany, manager.save
         // solo toca el header y este insert es la única escritura de líneas.
