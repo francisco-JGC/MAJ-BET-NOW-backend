@@ -173,7 +173,7 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
         }),
     );
     this.logger.log(
-      `create-ticket: líneas construidas — count=${lines.length} labels=[${lines.map((l) => l.label).join(', ')}]`,
+      `create-ticket: líneas construidas — count=${lines.length} detalle=[${lines.map((l) => `${l.label}(C$${l.amount}→${l.prize}x)`).join(', ')}]`,
     );
 
     // Cierre nocturno y ventana de cutoff usan los schedules ya cargados

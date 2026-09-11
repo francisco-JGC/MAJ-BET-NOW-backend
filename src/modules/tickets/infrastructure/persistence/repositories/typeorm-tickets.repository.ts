@@ -37,7 +37,7 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
     orm.lines = [];
 
     const tag = `[folio=${orm.folio} id=${orm.id}]`;
-    this.logger.log(`${tag} save() iniciado — líneas recibidas: ${lines.length}, labels: [${lines.map((l) => l.label).join(', ')}]`);
+    this.logger.log(`${tag} save() iniciado — líneas recibidas: ${lines.length}, detalle: [${lines.map((l) => `${l.label}(C$${l.amount}→${l.prize}x)`).join(', ')}]`);
 
     try {
       await this.repo.manager.transaction(async (manager) => {
