@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
@@ -22,6 +22,8 @@ import { TicketMapper } from '../mappers/ticket.mapper';
 
 @Injectable()
 export class TypeOrmTicketsRepository implements TicketsRepository {
+  private readonly logger = new Logger(TypeOrmTicketsRepository.name);
+
   constructor(
     @InjectRepository(TicketOrmEntity)
     private readonly repo: Repository<TicketOrmEntity>,
@@ -31,47 +33,66 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
 
   async save(ticket: Ticket): Promise<void> {
     const orm = TicketMapper.toOrm(ticket);
-
-    // Desacoplamos las líneas del entity antes de pasarlo a manager.save().
-    // El @OneToMany tiene eager:true — si orm.lines está poblado, TypeORM
-    // puede intentar gestionar esas filas durante el save (cascade implícito
-    // en algunos paths de EntityPersistExecutor), interfiriendo con el
-    // manager.insert() explícito que sigue y dejando el ticket sin líneas.
-    // Al pasarle lines=[] a save() solo se persiste el header; las líneas
-    // las manejamos 100% de forma explícita.
     const lines = orm.lines;
     orm.lines = [];
 
-    await this.repo.manager.transaction(async (manager) => {
-      // existsBy antes del save: las líneas son inmutables — solo se
-      // escriben una vez (en la creación). Void y payment solo modifican
-      // el header del ticket.
-      const isNew = !(await manager.existsBy(TicketOrmEntity, { id: orm.id }));
-      await manager.save(TicketOrmEntity, orm);
-      if (isNew) {
-        // Guardia: un ticket nuevo SIEMPRE debe tener líneas.
-        if (lines.length === 0) {
-          throw new Error(
-            `Ticket ${orm.id} se creó sin líneas — save abortado para evitar datos corruptos`,
-          );
-        }
-        // Un solo INSERT … VALUES (…),(…),… para N líneas.
-        await manager.insert(TicketLineOrmEntity, lines);
+    const tag = `[folio=${orm.folio} id=${orm.id}]`;
+    this.logger.log(`${tag} save() iniciado — líneas recibidas: ${lines.length}, labels: [${lines.map((l) => l.label).join(', ')}]`);
 
-        // Verificación dentro de la transacción: confirmamos que el INSERT
-        // realmente persistió todas las líneas antes de hacer commit.
-        // Si el conteo no coincide la transacción se aborta y el header
-        // tampoco queda en la DB.
-        const savedCount = await manager.count(TicketLineOrmEntity, {
-          where: { ticketId: orm.id },
-        });
-        if (savedCount !== lines.length) {
-          throw new Error(
-            `Ticket ${orm.id}: se esperaban ${lines.length} líneas pero se persistieron ${savedCount} — save abortado`,
-          );
+    try {
+      await this.repo.manager.transaction(async (manager) => {
+        const isNew = !(await manager.existsBy(TicketOrmEntity, { id: orm.id }));
+        this.logger.log(`${tag} transacción abierta — isNew=${isNew}`);
+
+        if (isNew) {
+          if (lines.length === 0) {
+            this.logger.error(`${tag} ABORTADO: lines.length === 0 antes del INSERT`);
+            throw new Error(
+              `Ticket ${orm.id} se creó sin líneas — save abortado para evitar datos corruptos`,
+            );
+          }
+
+          this.logger.log(`${tag} INSERT header...`);
+          await manager.insert(TicketOrmEntity, orm);
+          this.logger.log(`${tag} INSERT header OK`);
+
+          this.logger.log(`${tag} INSERT ${lines.length} líneas...`);
+          await manager.insert(TicketLineOrmEntity, lines);
+          this.logger.log(`${tag} INSERT líneas OK`);
+
+          const savedCount = await manager.count(TicketLineOrmEntity, {
+            where: { ticketId: orm.id },
+          });
+          this.logger.log(`${tag} COUNT dentro de TX: ${savedCount} (esperado ${lines.length})`);
+
+          if (savedCount !== lines.length) {
+            this.logger.error(`${tag} ABORTADO: mismatch de líneas — esperado ${lines.length}, en TX=${savedCount}`);
+            throw new Error(
+              `Ticket ${orm.id}: se esperaban ${lines.length} líneas pero se persistieron ${savedCount} — save abortado`,
+            );
+          }
+
+          this.logger.log(`${tag} verificación OK — haciendo commit...`);
+        } else {
+          this.logger.log(`${tag} UPDATE header (void/payment) status=${orm.status}`);
+          await manager.update(TicketOrmEntity, { id: orm.id }, {
+            status: orm.status,
+            voidedAt: orm.voidedAt,
+            voidedReason: orm.voidedReason,
+            paidAt: orm.paidAt,
+            paidById: orm.paidById,
+            paidPrize: orm.paidPrize,
+            updatedAt: orm.updatedAt,
+          });
+          this.logger.log(`${tag} UPDATE header OK`);
         }
-      }
-    });
+      });
+
+      this.logger.log(`${tag} save() completado y committeado`);
+    } catch (err) {
+      this.logger.error(`${tag} save() FALLÓ — rollback ejecutado. Error: ${(err as Error).message}`);
+      throw err;
+    }
   }
 
   async findById(id: string): Promise<Ticket | null> {

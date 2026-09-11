@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
@@ -73,6 +73,8 @@ import {
 
 @Injectable()
 export class CreateTicket implements UseCase<CreateTicketApplicationInput, TicketOutput> {
+  private readonly logger = new Logger(CreateTicket.name);
+
   constructor(
     @Inject(TICKETS_REPOSITORY) private readonly tickets: TicketsRepository,
     @Inject(GAMES_REPOSITORY) private readonly games: GamesRepository,
@@ -101,11 +103,18 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
     // los mismos números. Este check corre antes de cualquier validación
     // costosa (queries de game, sale point, seller, límites) para minimizar
     // trabajo redundante en reintentos.
+    this.logger.log(
+      `create-ticket: inicio — sellerId=${input.sellerId} salePointId=${input.salePointId} gameId=${input.gameId} lines=${input.lines.length} clientRequestId=${input.clientRequestId ?? 'none'}`,
+    );
+
     if (input.clientRequestId) {
       const existing = await this.tickets.findByClientRequestId(
         input.clientRequestId,
       );
-      if (existing) return toTicketOutput(existing);
+      if (existing) {
+        this.logger.log(`create-ticket: idempotencia — ticket existente folio=${existing.folio} retornado`);
+        return toTicketOutput(existing);
+      }
     }
 
     // Carga en paralelo todo lo que es estable durante la request: game,
@@ -163,6 +172,9 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
           orderIndex: i,
         }),
     );
+    this.logger.log(
+      `create-ticket: líneas construidas — count=${lines.length} labels=[${lines.map((l) => l.label).join(', ')}]`,
+    );
 
     // Cierre nocturno y ventana de cutoff usan los schedules ya cargados
     // — sin roundtrips adicionales.
@@ -197,9 +209,17 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
       clientRequestId: input.clientRequestId ?? null,
     });
 
+    this.logger.log(
+      `create-ticket: Ticket.create() OK — folio=${ticket.folio} id=${ticket.id} lines=${ticket.lines.length} total=${ticket.total}`,
+    );
+
     try {
       await this.tickets.save(ticket);
+      this.logger.log(`create-ticket: ticket guardado exitosamente — folio=${ticket.folio}`);
     } catch (err) {
+      this.logger.error(
+        `create-ticket: error al guardar folio=${ticket.folio} — ${(err as Error).message}`,
+      );
       // Race: dos requests con el mismo `clientRequestId` entraron en
       // paralelo (ambos pasaron el lookup inicial), el segundo choca con
       // el UNIQUE parcial. Devolvemos el ticket ganador (el primero) para
