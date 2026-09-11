@@ -31,6 +31,17 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
 
   async save(ticket: Ticket): Promise<void> {
     const orm = TicketMapper.toOrm(ticket);
+
+    // Desacoplamos las líneas del entity antes de pasarlo a manager.save().
+    // El @OneToMany tiene eager:true — si orm.lines está poblado, TypeORM
+    // puede intentar gestionar esas filas durante el save (cascade implícito
+    // en algunos paths de EntityPersistExecutor), interfiriendo con el
+    // manager.insert() explícito que sigue y dejando el ticket sin líneas.
+    // Al pasarle lines=[] a save() solo se persiste el header; las líneas
+    // las manejamos 100% de forma explícita.
+    const lines = orm.lines;
+    orm.lines = [];
+
     await this.repo.manager.transaction(async (manager) => {
       // existsBy antes del save: las líneas son inmutables — solo se
       // escriben una vez (en la creación). Void y payment solo modifican
@@ -38,18 +49,27 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
       const isNew = !(await manager.existsBy(TicketOrmEntity, { id: orm.id }));
       await manager.save(TicketOrmEntity, orm);
       if (isNew) {
-        // Guardia: un ticket nuevo SIEMPRE debe tener líneas. Si orm.lines
-        // está vacío algo falló upstream (mapper roto, domain invariant roto).
-        // Abortar la transacción es mejor que persistir un ticket sin números.
-        if (orm.lines.length === 0) {
+        // Guardia: un ticket nuevo SIEMPRE debe tener líneas.
+        if (lines.length === 0) {
           throw new Error(
             `Ticket ${orm.id} se creó sin líneas — save abortado para evitar datos corruptos`,
           );
         }
-        // Un solo INSERT … VALUES (…),(…),… para N líneas en vez de N
-        // INSERTs individuales. Sin cascade en @OneToMany, manager.save
-        // solo toca el header y este insert es la única escritura de líneas.
-        await manager.insert(TicketLineOrmEntity, orm.lines);
+        // Un solo INSERT … VALUES (…),(…),… para N líneas.
+        await manager.insert(TicketLineOrmEntity, lines);
+
+        // Verificación dentro de la transacción: confirmamos que el INSERT
+        // realmente persistió todas las líneas antes de hacer commit.
+        // Si el conteo no coincide la transacción se aborta y el header
+        // tampoco queda en la DB.
+        const savedCount = await manager.count(TicketLineOrmEntity, {
+          where: { ticketId: orm.id },
+        });
+        if (savedCount !== lines.length) {
+          throw new Error(
+            `Ticket ${orm.id}: se esperaban ${lines.length} líneas pero se persistieron ${savedCount} — save abortado`,
+          );
+        }
       }
     });
   }
