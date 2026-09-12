@@ -1,26 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import type { UseCase } from '../../../../shared/application/use-case';
 import { BUSINESS_TZ } from '../../../../shared/domain/business-time';
-import {
-  DRAW_RESULTS_REPOSITORY,
-  type DrawResultsRepository,
-} from '../../../games/domain/repositories/draw-results.repository';
-import {
-  GAMES_REPOSITORY,
-  type GamesRepository,
-} from '../../../games/domain/repositories/games.repository';
 import { PartnerScopeService } from '../../../sale-points/application/services/partner-scope.service';
 import { UserRole } from '../../../users/domain/value-objects/user-role';
-import { TicketEvaluator } from '../../../tickets/application/services/ticket-evaluator.service';
-import { ListWinningTickets } from '../../../tickets/application/use-cases/list-winning-tickets.use-case';
-import {
-  TICKETS_REPOSITORY,
-  type TicketsRepository,
-} from '../../../tickets/domain/repositories/tickets.repository';
-import { TicketStatus } from '../../../tickets/domain/value-objects/ticket-status';
 import type {
   DashboardSummaryOutput,
   RecentWinnerPreview,
@@ -87,11 +72,70 @@ const EMPTY_SUMMARY: DashboardSummaryOutput = {
 };
 
 /**
+ * SQL CASE expression that replicates TicketEvaluator.evaluateWith() in the
+ * database. Required table aliases: tickets → t, games → g,
+ * ticket_lines → tl, draw_results → dr.
+ *
+ * Must be kept in sync with TicketEvaluator whenever game-type logic changes.
+ */
+const PRIZE_SQL = `
+  CASE
+    -- REGULAR / FOUR_DIGIT: strip (F), trim, lowercase
+    WHEN g.type IN ('regular', 'four_digit')
+      AND LOWER(TRIM(REGEXP_REPLACE(tl.label, '\\(F\\)', '', 'i')))
+          = LOWER(TRIM(dr.winning_number))
+      THEN tl.prize
+
+    -- DATE: normalize spaces to dashes in both sides
+    WHEN g.type = 'date'
+      AND LOWER(REGEXP_REPLACE(TRIM(tl.label), '\\s+', '-', 'g'))
+          = LOWER(REGEXP_REPLACE(TRIM(dr.winning_number), '\\s+', '-', 'g'))
+      THEN tl.prize
+
+    -- THREE_DIGIT exact (no (F) in label)
+    WHEN g.type = 'three_digit'
+      AND tl.label NOT ILIKE '%(F)%'
+      AND TRIM(tl.label) = TRIM(dr.winning_number)
+      THEN tl.prize
+
+    -- THREE_DIGIT easy/falso ((F) in label): sorted digits must match
+    WHEN g.type = 'three_digit'
+      AND tl.label ILIKE '%(F)%'
+      AND (
+        SELECT string_agg(ch, '' ORDER BY ch)
+        FROM unnest(string_to_array(
+          TRIM(REGEXP_REPLACE(tl.label, '\\(F\\)', '', 'i')), NULL
+        )) AS ch
+      ) = (
+        SELECT string_agg(ch, '' ORDER BY ch)
+        FROM unnest(string_to_array(TRIM(dr.winning_number), NULL)) AS ch
+      )
+      THEN
+        -- Pair-easy: snapshot exists AND winning_number has a repeated digit
+        CASE
+          WHEN tl.pair_easy_prize IS NOT NULL AND (
+            SUBSTRING(dr.winning_number, 1, 1) = SUBSTRING(dr.winning_number, 2, 1) OR
+            SUBSTRING(dr.winning_number, 1, 1) = SUBSTRING(dr.winning_number, 3, 1) OR
+            SUBSTRING(dr.winning_number, 2, 1) = SUBSTRING(dr.winning_number, 3, 1)
+          )
+            THEN tl.pair_easy_prize
+          ELSE tl.prize
+        END
+
+    ELSE 0
+  END
+`.trim();
+
+/**
  * Aggregates the numbers powering the home dashboard.
  *
  * Everything is scoped by the caller: admins see the whole operation, partners
  * see only their sucursales, and no cross-partner leakage is possible because
  * the scope is derived server-side from the JWT.
+ *
+ * All prize computation runs entirely in PostgreSQL via PRIZE_SQL — no tickets
+ * are loaded into memory, avoiding the TypeORM two-phase pagination bug and
+ * eliminating thousands of rows of network traffic per request.
  */
 @Injectable()
 export class GetDashboardSummary
@@ -99,12 +143,6 @@ export class GetDashboardSummary
 {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
-    @Inject(GAMES_REPOSITORY) private readonly games: GamesRepository,
-    @Inject(TICKETS_REPOSITORY) private readonly tickets: TicketsRepository,
-    @Inject(DRAW_RESULTS_REPOSITORY)
-    private readonly drawResults: DrawResultsRepository,
-    private readonly evaluator: TicketEvaluator,
-    private readonly listWinningTickets: ListWinningTickets,
     private readonly partnerScope: PartnerScopeService,
   ) {}
 
@@ -118,10 +156,6 @@ export class GetDashboardSummary
 
     const ranges = this.resolveRanges(input.from, input.to);
 
-    // Cache TTL corto del summary completo — cubre el refresh rápido del
-    // usuario (F5, tabbear entre pantallas y volver) sin re-hacer las
-    // 7 queries. Key incluye el requesterId porque el scope varía por
-    // usuario (admin vs partner), y las fechas del rango.
     const summaryKey = this.buildSummaryCacheKey(
       input.requesterId,
       ranges.from,
@@ -144,14 +178,10 @@ export class GetDashboardSummary
       this.loadKpis(scope, ranges),
       this.loadWonKpis(scope, ranges),
       this.loadGameBreakdown(scope, ranges),
-      this.loadRecentWinners(input),
+      this.loadRecentWinners(scope),
       this.loadTopSellers(scope, ranges),
       this.loadTopSalePoints(scope, ranges),
     ]);
-    // Utilidad = facturado − pérdida. Deliberadamente NO incluye salarios
-    // ni movements manuales — el dashboard muestra la ganancia bruta antes
-    // de operativos y ajustes de caja. El "Restante" (post-operativos) vive
-    // en la pantalla de Cálculo de movimiento como métrica separada.
     const profit = kpis.billed - wonKpis.won;
     const profitPrev = kpis.billedPrev - wonKpis.wonPrev;
 
@@ -170,9 +200,6 @@ export class GetDashboardSummary
       value: summary,
       expiresAt: Date.now() + SUMMARY_TTL_MS,
     });
-    // Housekeeping: si el cache creció mucho (usuarios distintos usando
-    // rangos custom variados), purgamos entries expiradas para no crecer
-    // indefinidamente en memoria.
     if (_summaryCache.size > 200) {
       const nowMs = Date.now();
       for (const [k, entry] of _summaryCache) {
@@ -193,21 +220,6 @@ export class GetDashboardSummary
 
   // --- Ranges ---------------------------------------------------------------
 
-  /**
-   * Resuelve el rango pedido a límites concretos y calcula el período
-   * equivalente inmediato anterior. Sin `from`/`to` → hoy en Managua
-   * (00:00 a 24:00). El "prev" se computa como una ventana de la misma
-   * duración terminando justo antes de `from`.
-   *
-   * Ejemplos:
-   *  - Solo hoy (1 día): prev = ayer.
-   *  - 3 días: prev = los 3 días previos.
-   *  - 15 días: prev = los 15 días previos.
-   *
-   * `from` se ancla al inicio del día de Managua para que un rango como
-   * "del 1 al 5" cubra completo el día 5 aunque el cliente mande
-   * `2026-01-05T00:00:00-06:00` con la ambigüedad exclusive/inclusive.
-   */
   private resolveRanges(from: Date | undefined, to: Date | undefined): Ranges {
     if (from === undefined || to === undefined) {
       const { todayStart, todayEnd, yesterdayStart } = this.todayBoundaries();
@@ -218,9 +230,6 @@ export class GetDashboardSummary
         prevTo: todayStart,
       };
     }
-    // `to` inclusivo → sumamos 1ms para tener un límite exclusivo. Si el
-    // cliente ya mandó fin de día (`23:59:59.999`), 1ms extra da el
-    // inicio del día siguiente, que es exactamente lo que queremos.
     const inclusiveTo = new Date(to.getTime() + 1);
     const durationMs = inclusiveTo.getTime() - from.getTime();
     const prevTo = new Date(from.getTime());
@@ -243,8 +252,6 @@ export class GetDashboardSummary
     const y = nowBiz.getUTCFullYear();
     const m = nowBiz.getUTCMonth();
     const d = nowBiz.getUTCDate();
-    // Managua midnight = UTC medianoche del mismo día − offset (que es
-    // negativo, así que resta = suma 6h en UTC).
     const managuaMidnightUtcMs = (day: number) =>
       Date.UTC(y, m, day) - offsetMs;
     return {
@@ -254,78 +261,55 @@ export class GetDashboardSummary
     };
   }
 
-  // --- Won-by-clients KPIs --------------------------------------------------
+  // --- Won KPIs (pure SQL) --------------------------------------------------
 
   /**
-   * Suma de premios ganados por tickets vendidos en el rango — y en el
-   * rango previo para la comparación.
+   * Computes won prizes for the current and previous period entirely in SQL.
+   * Replaces the previous approach of loading up to 100 000 tickets into
+   * memory and evaluating them with TicketEvaluator — which was the root cause
+   * of the "bind message has N parameter formats but 0 parameters" error and
+   * caused the dashboard to be very slow.
    *
-   * Replica exactamente la lógica de `GetMovementsBalance.computeWonBySalePoint`
-   * (mismo `tickets.findMany` con límite alto + `TicketEvaluator.evaluateWith`
-   * contra draw_results) para que el "Pérdida hoy" del dashboard sea el
-   * mismo número que el "Premios ganados" del Cálculo de movimiento.
-   *
-   * Antes usábamos `ListWinningTickets` que trae con `limit: 1000` — si el
-   * rango tenía > 1000 tickets el dashboard subcontaba (bug real observado
-   * con 1817 tickets en un día). Acá usamos `100_000` como el balance.
-   *
-   * Los tickets con sorteos aún no ejecutados contribuyen 0 (el evaluator
-   * los devuelve como pendientes) — así solo se cuentan premios de los
-   * sorteos que ya cayeron, en línea con el modelo actual sin "pagado".
+   * Only tickets with an executed draw_result (INNER JOIN) are counted; tickets
+   * for future/pending draws contribute 0, which matches TicketEvaluator's
+   * behavior (it returns hasPendingDraw=true and totalPrize=0 when no result
+   * is found).
    */
   private async loadWonKpis(
     scope: SalePointScope,
     ranges: Ranges,
   ): Promise<{ won: number; wonPrev: number }> {
-    const tickets = await this.tickets.findMany({
-      status: TicketStatus.VALID,
-      salePointIds: scope,
-      from: ranges.prevFrom,
-      to: ranges.to,
-      limit: 100_000,
-      offset: 0,
-    });
-    if (tickets.length === 0) return { won: 0, wonPrev: 0 };
-
-    let minDrawMs = tickets[0].drawAt.getTime();
-    let maxDrawMs = minDrawMs;
-    for (const t of tickets) {
-      const ms = t.drawAt.getTime();
-      if (ms < minDrawMs) minDrawMs = ms;
-      if (ms > maxDrawMs) maxDrawMs = ms;
-    }
-
-    const [draws, gamesAll] = await Promise.all([
-      this.drawResults.findMany({
-        from: new Date(minDrawMs),
-        to: new Date(maxDrawMs),
-      }),
-      this.games.findAll({ onlyActive: false }),
-    ]);
-    const drawByKey = new Map(
-      draws.map((d) => [`${d.gameId}|${d.drawAt.toISOString()}`, d]),
+    // $1 = scope, $2 = prevFrom, $3 = from (boundary current vs prev), $4 = to
+    const rows = await this.dataSource.query<
+      Array<{ won: string; won_prev: string }>
+    >(
+      `
+      SELECT
+        COALESCE(SUM(CASE WHEN tp.created_at >= $3 THEN tp.total_prize ELSE 0 END), 0)::bigint AS won,
+        COALESCE(SUM(CASE WHEN tp.created_at <  $3 THEN tp.total_prize ELSE 0 END), 0)::bigint AS won_prev
+      FROM (
+        SELECT
+          t.created_at,
+          SUM(${PRIZE_SQL}) AS total_prize
+        FROM tickets t
+        JOIN games g         ON g.id         = t.game_id
+        JOIN ticket_lines tl ON tl.ticket_id = t.id
+        JOIN draw_results dr
+          ON dr.game_id = t.game_id AND dr.draw_at = t.draw_at
+        WHERE t.status          = 'valid'
+          AND t.sale_point_id   = ANY($1::uuid[])
+          AND t.created_at     >= $2::timestamptz
+          AND t.created_at     <  $4::timestamptz
+        GROUP BY t.id, t.created_at
+      ) tp
+      `,
+      [scope, ranges.prevFrom, ranges.from, ranges.to],
     );
-    const gameById = new Map(gamesAll.map((g) => [g.id, g]));
-
-    let won = 0;
-    let wonPrev = 0;
-    for (const t of tickets) {
-      const game = gameById.get(t.gameId) ?? null;
-      const key = `${t.gameId}|${t.drawAt.toISOString()}`;
-      const draw = drawByKey.get(key) ?? null;
-      const ev = this.evaluator.evaluateWith(t, game, draw);
-      if (ev.totalPrize <= 0) continue;
-      const createdAt = t.createdAt;
-      if (createdAt >= ranges.from && createdAt < ranges.to) {
-        won += ev.totalPrize;
-      } else if (
-        createdAt >= ranges.prevFrom &&
-        createdAt < ranges.prevTo
-      ) {
-        wonPrev += ev.totalPrize;
-      }
-    }
-    return { won, wonPrev };
+    const row = rows[0];
+    return {
+      won:     Number(row?.won     ?? 0),
+      wonPrev: Number(row?.won_prev ?? 0),
+    };
   }
 
   // --- KPIs -----------------------------------------------------------------
@@ -346,8 +330,6 @@ export class GetDashboardSummary
       | 'topSalePoints'
     >
   > {
-    // La ventana semanal es fija: últimos 7 días vs los 7 previos.
-    // No depende del rango que eligió el usuario — es su propia métrica.
     const rows = await this.dataSource.query<
       Array<{
         billed: string;
@@ -379,20 +361,12 @@ export class GetDashboardSummary
            AND t.created_at >= $5::timestamptz AND t.created_at < $6::timestamptz
           THEN 1 ELSE 0 END), 0)::bigint AS tickets_prev,
 
-        -- Semana en curso: desde el lunes de esta semana (Managua) hasta
-        -- HOY inclusive. date_trunc('week', d) en Postgres devuelve el
-        -- lunes ISO 8601. Si hoy es sábado cuenta lunes-sábado; si es
-        -- miércoles cuenta lunes-miércoles.
         COALESCE(SUM(CASE
           WHEN t.status = 'valid'
            AND (t.created_at AT TIME ZONE $1)::date BETWEEN
                  date_trunc('week', now() AT TIME ZONE $1)::date
                  AND (now() AT TIME ZONE $1)::date
           THEN t.total ELSE 0 END), 0)::bigint AS weekly_billed,
-        -- Comparativo: mismos días transcurridos de la semana PASADA
-        -- (lunes-pasado hasta el mismo día de la semana pasada). El rango
-        -- de esta semana desplazado 7 días atrás — mantiene la simetría
-        -- lunes→sábado_pasado si hoy es sábado.
         COALESCE(SUM(CASE
           WHEN t.status = 'valid'
            AND (t.created_at AT TIME ZONE $1)::date BETWEEN
@@ -414,8 +388,6 @@ export class GetDashboardSummary
     const tickets = Number(row?.tickets ?? 0);
     const billedPrev = Number(row?.billed_prev ?? 0);
     const ticketsPrev = Number(row?.tickets_prev ?? 0);
-    // `profit` / `profitPrev` NO se calculan acá — se computan en
-    // `execute()` como `billed - won` una vez que `loadWonKpis` resuelve.
     return {
       billed,
       tickets,
@@ -453,9 +425,6 @@ export class GetDashboardSummary
       `,
       [scope, ranges.from, ranges.to],
     );
-    // `won` acá también quedaría por evaluar contra draws — como el
-    // dashboard usa esto solo para el chart "Facturación por juego",
-    // dejamos 0 y no distorsiona el gráfico principal.
     return rows.map((r) => ({
       gameId: r.id,
       gameName: r.name,
@@ -464,49 +433,96 @@ export class GetDashboardSummary
     }));
   }
 
-  // --- Recent winners -------------------------------------------------------
+  // --- Recent winners (pure SQL) --------------------------------------------
 
+  /**
+   * Returns count, total prize, and top-4 preview of winning tickets in the
+   * last 30 days. Runs entirely in SQL — no tickets are loaded into memory.
+   */
   private async loadRecentWinners(
-    caller: DashboardSummaryInput,
+    scope: SalePointScope,
   ): Promise<DashboardSummaryOutput['recentWinners']> {
-    // Panorama de ganadores recientes → NO se filtra por el rango
-    // seleccionado. Siempre miramos los últimos 30 días. Antes acá se
-    // filtraba `paidAt === null` para mostrar solo "pendientes de pago";
-    // con la eliminación del concepto de pago, ahora se listan todos.
-    const winners = await this.listWinningTickets.execute({
-      requesterId: caller.requesterId,
-      requesterRole: caller.requesterRole,
-      from: new Date(Date.now() - 30 * MS_PER_DAY),
-      to: new Date(),
-    });
+    const thirtyDaysAgo = new Date(Date.now() - 30 * MS_PER_DAY);
 
-    let total = 0;
-    for (const w of winners) total += w.totalPrize;
-
-    winners.sort(
-      (a, b) =>
-        new Date(b.ticket.drawAt).getTime() -
-        new Date(a.ticket.drawAt).getTime(),
+    type PreviewRow = {
+      ticketId: string;
+      folio: string;
+      gameId: string;
+      gameName: string;
+      drawAt: string;
+      totalPrize: number;
+      client: string | null;
+    };
+    const rows = await this.dataSource.query<
+      Array<{
+        winner_count: string;
+        total_amount: string;
+        preview_json: PreviewRow[] | null;
+      }>
+    >(
+      `
+      WITH raw_prizes AS (
+        SELECT
+          t.id,
+          t.folio,
+          t.game_id,
+          g.name   AS game_name,
+          t.draw_at,
+          t.client,
+          SUM(${PRIZE_SQL}) AS total_prize
+        FROM tickets t
+        JOIN games g         ON g.id         = t.game_id
+        JOIN ticket_lines tl ON tl.ticket_id = t.id
+        JOIN draw_results dr
+          ON dr.game_id = t.game_id AND dr.draw_at = t.draw_at
+        WHERE t.status        = 'valid'
+          AND t.sale_point_id = ANY($1::uuid[])
+          AND t.created_at   >= $2::timestamptz
+        GROUP BY t.id, t.folio, t.game_id, g.name, t.draw_at, t.client
+      ),
+      winning AS (
+        SELECT * FROM raw_prizes WHERE total_prize > 0
+      )
+      SELECT
+        COUNT(*)::bigint                      AS winner_count,
+        COALESCE(SUM(total_prize), 0)::bigint AS total_amount,
+        (
+          SELECT json_agg(p)
+          FROM (
+            SELECT
+              id        AS "ticketId",
+              folio,
+              game_id   AS "gameId",
+              game_name AS "gameName",
+              to_char(draw_at AT TIME ZONE 'UTC',
+                      'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "drawAt",
+              total_prize AS "totalPrize",
+              client
+            FROM winning
+            ORDER BY draw_at DESC
+            LIMIT 4
+          ) p
+        ) AS preview_json
+      FROM winning
+      `,
+      [scope, thirtyDaysAgo],
     );
-    const preview = winners.slice(0, 4);
-    const gameIds = Array.from(new Set(preview.map((w) => w.ticket.gameId)));
-    const games = await Promise.all(
-      gameIds.map((id) => this.games.findById(id)),
-    );
-    const gameNameById = new Map<string, string>();
-    for (const g of games) if (g) gameNameById.set(g.id, g.name);
 
-    const items: RecentWinnerPreview[] = preview.map((w) => ({
-      ticketId: w.ticket.id,
-      folio: w.ticket.folio,
-      gameId: w.ticket.gameId,
-      gameName: gameNameById.get(w.ticket.gameId) ?? '—',
-      drawAt: new Date(w.ticket.drawAt).toISOString(),
-      totalPrize: w.totalPrize,
-      client: w.ticket.client,
+    const row = rows[0];
+    const count       = Number(row?.winner_count ?? 0);
+    const totalAmount = Number(row?.total_amount  ?? 0);
+
+    const items: RecentWinnerPreview[] = (row?.preview_json ?? []).map((p) => ({
+      ticketId:   p.ticketId,
+      folio:      p.folio,
+      gameId:     p.gameId,
+      gameName:   p.gameName ?? '—',
+      drawAt:     p.drawAt,
+      totalPrize: Number(p.totalPrize),
+      client:     p.client ?? null,
     }));
 
-    return { count: winners.length, totalAmount: total, items };
+    return { count, totalAmount, items };
   }
 
   // --- Top sellers / sale points --------------------------------------------
@@ -540,9 +556,9 @@ export class GetDashboardSummary
       [scope, ranges.from, ranges.to],
     );
     return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      amount: Number(r.amount),
+      id:          r.id,
+      name:        r.name,
+      amount:      Number(r.amount),
       ticketCount: Number(r.ticket_count),
     }));
   }
@@ -574,11 +590,10 @@ export class GetDashboardSummary
       [scope, ranges.from, ranges.to],
     );
     return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      amount: Number(r.amount),
+      id:          r.id,
+      name:        r.name,
+      amount:      Number(r.amount),
       ticketCount: Number(r.ticket_count),
     }));
   }
-
 }
