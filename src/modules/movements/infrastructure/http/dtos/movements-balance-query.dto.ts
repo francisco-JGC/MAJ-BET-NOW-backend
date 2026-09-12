@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { ArrayUnique, IsDateString, IsOptional, IsUUID } from 'class-validator';
+import { ArrayUnique, IsDateString, IsOptional, IsString, IsUUID, Matches } from 'class-validator';
 
 export class MovementsBalanceQueryDto {
   @IsOptional()
@@ -24,6 +24,15 @@ export class MovementsBalanceQueryDto {
   @IsUUID('all', { each: true })
   @ArrayUnique()
   salePointIds?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  gameId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{2}:\d{2}$/)
+  drawTime?: string;
 
   @IsOptional()
   @IsDateString()

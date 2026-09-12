@@ -43,6 +43,9 @@ export interface GetMovementsBalanceInput {
    * precedencia si viene también (compat legacy).
    */
   salePointIds?: string[];
+  gameId?: string;
+  /** "HH:MM" wall-clock en zona Managua. */
+  drawTime?: string;
   from?: Date;
   to?: Date;
 }
@@ -115,6 +118,8 @@ export class GetMovementsBalance
             AND ($2::timestamptz IS NULL OR t.created_at >= $2::timestamptz)
             AND ($3::timestamptz IS NULL OR t.created_at <  $3::timestamptz)
             AND t.sale_point_id = ANY($4::uuid[])
+            AND ($5::uuid IS NULL OR t.game_id = $5::uuid)
+            AND ($6::text IS NULL OR to_char(t.draw_at AT TIME ZONE 'America/Managua', 'HH24:MI') = $6::text)
           GROUP BY t.sale_point_id
         ),
         movement_flow AS (
@@ -146,6 +151,8 @@ export class GetMovementsBalance
         input.from ?? null,
         input.to ?? null,
         effectiveScope,
+        input.gameId ?? null,
+        input.drawTime ?? null,
       ],
     );
 
@@ -158,6 +165,8 @@ export class GetMovementsBalance
     const wonBySalePoint = await this.computeWonBySalePoint({
       salePointId: input.salePointId,
       salePointIds: effectiveScope,
+      gameId: input.gameId,
+      drawTime: input.drawTime,
       from: input.from,
       to: input.to,
     });
@@ -251,6 +260,8 @@ export class GetMovementsBalance
   private async computeWonBySalePoint(filters: {
     salePointId?: string;
     salePointIds?: string[];
+    gameId?: string;
+    drawTime?: string;
     from?: Date;
     to?: Date;
   }): Promise<Map<string, number>> {
@@ -258,6 +269,8 @@ export class GetMovementsBalance
       status: TicketStatus.VALID,
       salePointId: filters.salePointId,
       salePointIds: filters.salePointIds,
+      gameId: filters.gameId,
+      drawTime: filters.drawTime,
       from: filters.from,
       to: filters.to,
       // Reporting query: no paginamos. En la práctica un reporte típico

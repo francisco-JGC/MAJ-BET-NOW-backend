@@ -35,6 +35,9 @@ export interface GetSellerReportInput {
   /** Multi-sucursal. Se intersecta con el partner scope antes de aplicar. */
   salePointIds?: string[];
   sellerId?: string;
+  gameId?: string;
+  /** "HH:MM" wall-clock en zona Managua. */
+  drawTime?: string;
   from?: Date;
   to?: Date;
 }
@@ -103,6 +106,8 @@ export class GetSellerReport
         AND ($3::timestamptz IS NULL OR t.created_at >= $3::timestamptz)
         AND ($4::timestamptz IS NULL OR t.created_at <  $4::timestamptz)
         AND t.sale_point_id = ANY($5::uuid[])
+        AND ($6::uuid IS NULL OR t.game_id = $6::uuid)
+        AND ($7::text IS NULL OR to_char(t.draw_at AT TIME ZONE 'America/Managua', 'HH24:MI') = $7::text)
       GROUP BY t.seller_id
       `,
       [
@@ -111,6 +116,8 @@ export class GetSellerReport
         input.from ?? null,
         input.to ?? null,
         effectiveScope,
+        input.gameId ?? null,
+        input.drawTime ?? null,
       ],
     );
 
@@ -120,6 +127,8 @@ export class GetSellerReport
       sellerId: effectiveSellerId,
       salePointId: input.salePointId,
       salePointIds: effectiveScope,
+      gameId: input.gameId,
+      drawTime: input.drawTime,
       from: input.from,
       to: input.to,
     });
@@ -231,6 +240,8 @@ export class GetSellerReport
     sellerId?: string;
     salePointId?: string;
     salePointIds?: string[];
+    gameId?: string;
+    drawTime?: string;
     from?: Date;
     to?: Date;
   }): Promise<Map<string, number>> {
@@ -239,6 +250,8 @@ export class GetSellerReport
       sellerId: filters.sellerId,
       salePointId: filters.salePointId,
       salePointIds: filters.salePointIds,
+      gameId: filters.gameId,
+      drawTime: filters.drawTime,
       from: filters.from,
       to: filters.to,
       limit: 100_000,

@@ -36,6 +36,8 @@ export interface GetBranchTotalsInput {
   requesterId: string;
   requesterRole: UserRole;
   gameId?: string;
+  /** "HH:MM" wall-clock en zona Managua. */
+  drawTime?: string;
   from?: Date;
   to?: Date;
 }
@@ -95,6 +97,7 @@ export class GetBranchTotals
         AND ($2::timestamptz IS NULL OR t.created_at >= $2::timestamptz)
         AND ($3::timestamptz IS NULL OR t.created_at <  $3::timestamptz)
         AND t.sale_point_id = ANY($4::uuid[])
+        AND ($5::text IS NULL OR to_char(t.draw_at AT TIME ZONE 'America/Managua', 'HH24:MI') = $5::text)
       GROUP BY t.sale_point_id
       `,
       [
@@ -102,6 +105,7 @@ export class GetBranchTotals
         input.from ?? null,
         input.to ?? null,
         partnerScope,
+        input.drawTime ?? null,
       ],
     );
 
@@ -112,6 +116,7 @@ export class GetBranchTotals
     // alguien marcara el ticket como pagado; ese concepto se eliminó).
     const wonBySalePoint = await this.computeWonBySalePoint({
       gameId: input.gameId,
+      drawTime: input.drawTime,
       salePointIds: partnerScope,
       from: input.from,
       to: input.to,
@@ -170,6 +175,7 @@ export class GetBranchTotals
    */
   private async computeWonBySalePoint(filters: {
     gameId?: string;
+    drawTime?: string;
     salePointIds: string[];
     from?: Date;
     to?: Date;
@@ -177,6 +183,7 @@ export class GetBranchTotals
     const tickets = await this.tickets.findMany({
       status: TicketStatus.VALID,
       gameId: filters.gameId,
+      drawTime: filters.drawTime,
       salePointIds: filters.salePointIds,
       from: filters.from,
       to: filters.to,

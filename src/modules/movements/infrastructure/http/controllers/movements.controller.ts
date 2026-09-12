@@ -94,6 +94,8 @@ export class MovementsController {
       requesterRole: user.role,
       salePointId: query.salePointId,
       salePointIds: query.salePointIds,
+      gameId: query.gameId,
+      drawTime: query.drawTime,
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
     });

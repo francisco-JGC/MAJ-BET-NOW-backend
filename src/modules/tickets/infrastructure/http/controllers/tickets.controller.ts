@@ -149,6 +149,7 @@ export class TicketsController {
       requesterId: user.id,
       requesterRole: user.role,
       gameId: query.gameId,
+      drawTime: query.drawTime,
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
     });
@@ -165,6 +166,8 @@ export class TicketsController {
       salePointId: query.salePointId,
       salePointIds: query.salePointIds,
       sellerId: query.sellerId,
+      gameId: query.gameId,
+      drawTime: query.drawTime,
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
     });
