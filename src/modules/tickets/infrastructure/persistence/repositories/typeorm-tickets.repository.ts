@@ -114,22 +114,37 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
     // Partner scoping with an empty allow-list means "nothing accessible".
     if (filters.salePointIds && filters.salePointIds.length === 0) return [];
 
-    // Use QueryBuilder with explicit LEFT JOIN instead of repo.find() so that
-    // TypeORM does NOT use its two-phase eager-loading strategy (get IDs first,
-    // then WHERE id IN (…)). That strategy generates a bind message with
-    // N format codes but 0 parameter values when N is large — a pg driver bug
-    // triggered by high `take` limits (e.g. 100 000 for the winning-tickets
-    // and balance use-cases), causing PostgreSQL to reject with
-    // "bind message has N parameter formats but 0 parameters".
+    // TypeORM's two-phase eager-loading strategy (get IDs first, then
+    // WHERE id IN (…)) — triggered by both repo.find() AND QueryBuilder
+    // .take()/.skip() combined with .leftJoinAndSelect() — generates a bind
+    // message with N format codes but 0 parameter values when N is large.
+    // This causes PostgreSQL to reject with:
+    //   "bind message has N parameter formats but 0 parameters"
+    //
+    // Fix: push LIMIT/OFFSET into a subquery within the WHERE clause so the
+    // entire thing executes as a single SQL round-trip. The outer query joins
+    // lines; the inner query paginates over ticket IDs only. No two-phase.
     const qb = this.repo
       .createQueryBuilder('t')
       .leftJoinAndSelect('t.lines', 'lines')
-      .orderBy('t.createdAt', 'DESC');
+      .orderBy('t.createdAt', 'DESC')
+      .addOrderBy('lines.orderIndex', 'ASC');
 
-    if (filters.limit !== undefined) qb.take(filters.limit);
-    if (filters.offset !== undefined) qb.skip(filters.offset);
+    if (filters.limit !== undefined || filters.offset !== undefined) {
+      // Inner query: filters + pagination, IDs only.
+      const inner = this.repo
+        .createQueryBuilder('sub')
+        .select('sub.id')
+        .orderBy('sub.createdAt', 'DESC');
+      this.applyWhereToQb(inner, filters);
+      if (filters.limit !== undefined) inner.limit(filters.limit);
+      if (filters.offset !== undefined) inner.offset(filters.offset);
 
-    this.applyWhereToQb(qb, filters);
+      qb.where(`t.id IN (${inner.getQuery()})`);
+      qb.setParameters(inner.getParameters());
+    } else {
+      this.applyWhereToQb(qb, filters);
+    }
 
     const rows = await qb.getMany();
     return rows.map((row) => TicketMapper.toDomain(row));
