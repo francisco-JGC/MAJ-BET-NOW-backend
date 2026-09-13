@@ -104,8 +104,8 @@ export class TicketsController {
       to: query.to ? new Date(query.to) : undefined,
       drawTime: query.drawTime,
       search: query.search,
-      page: query.page ?? 0,
-      limit: query.limit ?? 20,
+      page: query.page,
+      limit: query.limit,
     });
   }
 
