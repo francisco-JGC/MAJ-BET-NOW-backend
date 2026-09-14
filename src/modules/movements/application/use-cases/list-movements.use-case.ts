@@ -86,9 +86,10 @@ export class ListMovements
       salePointId: input.salePointId,
       sellerId: input.sellerId,
       salePointIds: accessible,
-      // Include seller movements (salePointId IS NULL) only when not filtering
-      // by a specific sale point — otherwise the sucursal filter should be exact.
-      includeNullSalePoint: !input.salePointId,
+      // Always include seller movements (salePointId IS NULL) attributed to
+      // their branch via the users table — whether filtering by a specific
+      // branch or listing all accessible ones.
+      includeNullSalePoint: true,
       type: input.type,
       from: input.from,
       to: input.to,

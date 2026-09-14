@@ -43,9 +43,10 @@ export class TypeOrmMovementsRepository implements MovementsRepository {
   async findMany(filters: FindMovementsFilters): Promise<Movement[]> {
     if (filters.salePointIds && filters.salePointIds.length === 0) return [];
 
-    // Use QueryBuilder when includeNullSalePoint is active — FindOptionsWhere
-    // can't express the scoped subquery needed for seller-level movements.
-    if (filters.includeNullSalePoint && filters.salePointIds?.length) {
+    // Always use QueryBuilder when a sale-point scope is present so that
+    // seller-level movements (salePointId IS NULL) are included and correctly
+    // attributed to their branch via the users table.
+    if (filters.salePointId || filters.salePointIds?.length) {
       const rows = await this.buildScopedQb(filters)
         .orderBy('m.occurredAt', 'DESC')
         .take(filters.limit)
@@ -66,7 +67,7 @@ export class TypeOrmMovementsRepository implements MovementsRepository {
   async countMany(filters: FindMovementsFilters): Promise<number> {
     if (filters.salePointIds && filters.salePointIds.length === 0) return 0;
 
-    if (filters.includeNullSalePoint && filters.salePointIds?.length) {
+    if (filters.salePointId || filters.salePointIds?.length) {
       return this.buildScopedQb(filters).getCount();
     }
 
@@ -78,21 +79,33 @@ export class TypeOrmMovementsRepository implements MovementsRepository {
   }
 
   /**
-   * QueryBuilder used when we need to include seller-level movements
-   * (salePointId IS NULL) but only for sellers that belong to the accessible
-   * sale points. Prevents partners from seeing movements from other branches.
+   * QueryBuilder used to include seller-level movements (salePointId IS NULL)
+   * attributed to their branch via the users table. Handles both exact-branch
+   * (salePointId singular) and multi-branch (salePointIds array) cases.
+   * Prevents partners from seeing movements from other branches.
    */
   private buildScopedQb(
     filters: FindMovementsFilters,
   ): SelectQueryBuilder<MovementOrmEntity> {
-    const qb = this.repo
-      .createQueryBuilder('m')
-      .where(
+    const qb = this.repo.createQueryBuilder('m');
+
+    if (filters.salePointId) {
+      // Exact branch: direct movements + seller movements for sellers of this branch.
+      qb.where(
+        '(m.salePointId = :salePointId OR ' +
+          '(m.salePointId IS NULL AND m.sellerId IS NOT NULL AND ' +
+          'EXISTS (SELECT 1 FROM users u WHERE u.id = m.sellerId AND u.sale_point_id = :salePointId)))',
+        { salePointId: filters.salePointId },
+      );
+    } else {
+      // All accessible branches.
+      qb.where(
         '(m.salePointId IN (:...salePointIds) OR ' +
           '(m.salePointId IS NULL AND m.sellerId IS NOT NULL AND ' +
           'EXISTS (SELECT 1 FROM users u WHERE u.id = m.sellerId AND u.sale_point_id IN (:...salePointIds))))',
         { salePointIds: filters.salePointIds },
       );
+    }
 
     this.applyCommonFilters(qb, filters);
     return qb;

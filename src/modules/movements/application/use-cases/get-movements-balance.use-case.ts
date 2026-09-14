@@ -173,17 +173,18 @@ export class GetMovementsBalance
         ),
         movement_flow AS (
           SELECT
-            m.sale_point_id::text AS sale_point_id,
+            COALESCE(m.sale_point_id, u.sale_point_id)::text AS sale_point_id,
             COALESCE(SUM(CASE WHEN m.type = 'deposit'    THEN m.amount ELSE 0 END), 0)::bigint AS deposits,
             COALESCE(SUM(CASE WHEN m.type = 'withdrawal' THEN m.amount ELSE 0 END), 0)::bigint AS withdrawals,
             COALESCE(SUM(CASE WHEN m.type = 'expense'    THEN m.amount ELSE 0 END), 0)::bigint AS expenses,
             COALESCE(SUM(CASE WHEN m.type = 'adjustment' THEN m.amount ELSE 0 END), 0)::bigint AS adjustments
           FROM movements m
-          WHERE ($1::uuid IS NULL OR m.sale_point_id = $1::uuid)
+          LEFT JOIN users u ON u.id = m.seller_id AND m.sale_point_id IS NULL
+          WHERE ($1::uuid IS NULL OR COALESCE(m.sale_point_id, u.sale_point_id) = $1::uuid)
             AND ($2::timestamptz IS NULL OR m.occurred_at >= $2::timestamptz)
             AND ($3::timestamptz IS NULL OR m.occurred_at <  $3::timestamptz)
-            AND m.sale_point_id = ANY($4::uuid[])
-          GROUP BY m.sale_point_id
+            AND COALESCE(m.sale_point_id, u.sale_point_id) = ANY($4::uuid[])
+          GROUP BY COALESCE(m.sale_point_id, u.sale_point_id)
         ),
         won_flow AS (
           SELECT
