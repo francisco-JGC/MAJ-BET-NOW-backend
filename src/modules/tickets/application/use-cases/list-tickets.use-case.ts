@@ -146,17 +146,19 @@ export class ListTickets implements UseCase<ListTicketsInput, ListTicketsOutput>
       return { items: [], total: 0, totalBilled: 0, totalWonPrize: 0 };
     }
 
-    // When a search term arrives we drop from/to/drawTime — a folio is
-    // system-wide unique and the operator doesn't know the emission date.
+    // When a search term arrives we drop date/game/status/salePoint filters —
+    // a folio is system-wide unique; the operator wants to find it regardless
+    // of which game, status, or date range it belongs to.
+    // Security scope (effectiveSellerId + salePointIds) is always kept.
     const searchTerm = input.search?.trim();
     const isSearching = !!searchTerm;
 
     const findManyArgs = {
       sellerId: effectiveSellerId,
-      salePointId: input.salePointId,
+      salePointId: isSearching ? undefined : input.salePointId,
       salePointIds: accessibleSalePointIds,
-      gameId: input.gameId,
-      status: input.status,
+      gameId: isSearching ? undefined : input.gameId,
+      status: isSearching ? undefined : input.status,
       from: isSearching ? undefined : input.from,
       to: isSearching ? undefined : input.to,
       drawTime: isSearching ? undefined : input.drawTime,
@@ -173,10 +175,10 @@ export class ListTickets implements UseCase<ListTicketsInput, ListTicketsOutput>
       // $6=from     $7=to          $8=drawTime        $9=search
       const statsParams = [
         effectiveSellerId ?? null,
-        input.salePointId ?? null,
+        isSearching ? null : (input.salePointId ?? null),
         accessibleSalePointIds,
-        input.gameId ?? null,
-        input.status ?? null,
+        isSearching ? null : (input.gameId ?? null),
+        isSearching ? null : (input.status ?? null),
         isSearching ? null : (input.from ?? null),
         isSearching ? null : (input.to ?? null),
         isSearching ? null : (input.drawTime ?? null),

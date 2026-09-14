@@ -132,10 +132,15 @@ export class TypeOrmTicketsRepository implements TicketsRepository {
 
     if (filters.limit !== undefined || filters.offset !== undefined) {
       // Inner query: filters + pagination, IDs only.
+      // Must use alias 't' — applyWhereToQb hardcodes that prefix.
+      // Using a different alias ('sub') causes the WHERE conditions to
+      // reference the outer query via correlated subquery, which makes
+      // LIMIT apply over the entire unfiltered table instead of the
+      // filtered set (game/drawTime/sellerId filters are silently ignored).
       const inner = this.repo
-        .createQueryBuilder('sub')
-        .select('sub.id')
-        .orderBy('sub.createdAt', 'DESC');
+        .createQueryBuilder('t')
+        .select('t.id')
+        .orderBy('t.createdAt', 'DESC');
       this.applyWhereToQb(inner, filters);
       if (filters.limit !== undefined) inner.limit(filters.limit);
       if (filters.offset !== undefined) inner.offset(filters.offset);
