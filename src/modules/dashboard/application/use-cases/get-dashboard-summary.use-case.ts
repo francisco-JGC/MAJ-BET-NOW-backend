@@ -407,9 +407,24 @@ export class GetDashboardSummary
     ranges: Ranges,
   ): Promise<DashboardSummaryOutput['byGame']> {
     const rows = await this.dataSource.query<
-      Array<{ id: string; name: string; billed: string }>
+      Array<{ id: string; name: string; billed: string; won: string }>
     >(
       `
+      WITH won_by_game AS (
+        SELECT
+          t.game_id,
+          COALESCE(SUM(${PRIZE_SQL}), 0)::bigint AS won
+        FROM tickets t
+        JOIN games g         ON g.id         = t.game_id
+        JOIN ticket_lines tl ON tl.ticket_id = t.id
+        JOIN draw_results dr ON dr.game_id   = t.game_id
+                            AND dr.draw_at   = t.draw_at
+        WHERE t.status        = 'valid'
+          AND t.sale_point_id = ANY($1::uuid[])
+          AND t.created_at   >= $2::timestamptz
+          AND t.created_at   <  $3::timestamptz
+        GROUP BY t.game_id
+      )
       SELECT
         g.id,
         g.name,
@@ -417,10 +432,12 @@ export class GetDashboardSummary
           WHEN t.status = 'valid'
            AND t.created_at >= $2::timestamptz AND t.created_at < $3::timestamptz
            AND t.sale_point_id = ANY($1::uuid[])
-          THEN t.total ELSE 0 END), 0)::bigint AS billed
+          THEN t.total ELSE 0 END), 0)::bigint AS billed,
+        COALESCE(wbg.won, 0) AS won
       FROM games g
       LEFT JOIN tickets t ON t.game_id = g.id
-      GROUP BY g.id, g.name, g.order_index
+      LEFT JOIN won_by_game wbg ON wbg.game_id = g.id
+      GROUP BY g.id, g.name, g.order_index, wbg.won
       ORDER BY g.order_index ASC
       `,
       [scope, ranges.from, ranges.to],
@@ -429,7 +446,7 @@ export class GetDashboardSummary
       gameId: r.id,
       gameName: r.name,
       billed: Number(r.billed),
-      won: 0,
+      won: Number(r.won),
     }));
   }
 
