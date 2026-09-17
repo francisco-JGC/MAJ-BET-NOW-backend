@@ -63,6 +63,20 @@ export class TypeOrmUsersRepository implements UsersRepository {
     return this.repo.count();
   }
 
+  async transferBranch(userId: string, newSalePointId: string): Promise<void> {
+    await this.repo.manager.transaction(async (em) => {
+      await em.update(UserOrmEntity, { id: userId }, { salePointId: newSalePointId });
+      await em.query(
+        `UPDATE tickets SET sale_point_id = $1 WHERE seller_id = $2`,
+        [newSalePointId, userId],
+      );
+      await em.query(
+        `UPDATE movements SET sale_point_id = $1 WHERE seller_id = $2`,
+        [newSalePointId, userId],
+      );
+    });
+  }
+
   private buildWhere(
     options: FindUsersOptions,
   ): FindOptionsWhere<UserOrmEntity> | FindOptionsWhere<UserOrmEntity>[] {

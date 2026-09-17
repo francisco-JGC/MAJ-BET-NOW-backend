@@ -30,4 +30,10 @@ export interface UsersRepository {
   findByIds(ids: string[]): Promise<User[]>;
   count(options: Omit<FindUsersOptions, 'limit' | 'offset'>): Promise<number>;
   countAll(): Promise<number>;
+  /**
+   * Transfers a seller to a new branch in a single atomic transaction:
+   * updates users.sale_point_id, tickets.sale_point_id, and
+   * movements.sale_point_id for all records belonging to this seller.
+   */
+  transferBranch(userId: string, newSalePointId: string): Promise<void>;
 }

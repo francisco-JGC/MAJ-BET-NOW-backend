@@ -20,6 +20,7 @@ import {
   ListUsers,
   type ListUsersOutput,
 } from '../../../application/use-cases/list-users.use-case';
+import { TransferSellerBranch } from '../../../application/use-cases/transfer-seller-branch.use-case';
 import { UpdateMobileSalesProfile } from '../../../application/use-cases/update-mobile-sales-profile.use-case';
 import { UpdateUser } from '../../../application/use-cases/update-user.use-case';
 import { UserOutput } from '../../../application/dtos/user.output';
@@ -27,6 +28,7 @@ import { UserRole } from '../../../domain/value-objects/user-role';
 import { BootstrapAdminHttpDto } from '../dtos/bootstrap-admin-http.dto';
 import { CreateUserHttpDto } from '../dtos/create-user-http.dto';
 import { ListUsersQueryDto } from '../dtos/list-users-query.dto';
+import { TransferBranchHttpDto } from '../dtos/transfer-branch-http.dto';
 import { UpdateMobileSalesProfileHttpDto } from '../dtos/update-mobile-sales-profile-http.dto';
 import { UpdateUserHttpDto } from '../dtos/update-user-http.dto';
 
@@ -37,6 +39,7 @@ export class UsersController {
     private readonly findUserById: FindUserById,
     private readonly listUsers: ListUsers,
     private readonly updateUser: UpdateUser,
+    private readonly transferSellerBranch: TransferSellerBranch,
     private readonly bootstrapFirstAdmin: BootstrapFirstAdmin,
     private readonly updateMobileSalesProfile: UpdateMobileSalesProfile,
   ) {}
@@ -115,6 +118,18 @@ export class UsersController {
       ...dto,
       requesterId: user.id,
       requesterRole: user.role,
+    });
+  }
+
+  @Post(':id/transfer-branch')
+  @Roles(UserRole.ADMIN)
+  transferBranch(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: TransferBranchHttpDto,
+  ): Promise<UserOutput> {
+    return this.transferSellerBranch.execute({
+      userId: id,
+      newSalePointId: dto.newSalePointId,
     });
   }
 }
