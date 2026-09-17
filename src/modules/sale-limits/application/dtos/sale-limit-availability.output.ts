@@ -11,5 +11,7 @@
  */
 export interface SaleLimitAvailabilityOutput {
   limit: number | null;
+  /** Max bet per ticket line for any number. null = no per-ticket cap. */
+  maxPerTicket: number | null;
   usage: Record<string, number>;
 }

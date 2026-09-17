@@ -456,6 +456,19 @@ export class CreateTicket implements UseCase<CreateTicketApplicationInput, Ticke
       }
     }
 
+    // Monto máximo por boleto: si está configurado, ninguna línea individual
+    // puede superar ese tope. El vendedor debe dividir en varios boletos.
+    if (generalLimit?.maxPerTicket != null) {
+      const cap = generalLimit.maxPerTicket;
+      for (const line of lines) {
+        if (line.amount > cap) {
+          throw new ValidationError(
+            `El monto máximo por boleto para el número "${line.label}" es C$${cap}. Apostaste C$${line.amount}. Divide la apuesta en boletos de C$${cap} o menos.`,
+          );
+        }
+      }
+    }
+
     // Compound this ticket's own repeated labels into a single request.
     const requestedByLabel = new Map<string, number>();
     for (const line of lines) {
