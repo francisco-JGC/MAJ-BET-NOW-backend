@@ -7,6 +7,7 @@ import { BootstrapFirstAdmin } from './application/use-cases/bootstrap-first-adm
 import { CreateUser } from './application/use-cases/create-user.use-case';
 import { FindUserById } from './application/use-cases/find-user-by-id.use-case';
 import { FindUserByUsername } from './application/use-cases/find-user-by-username.use-case';
+import { GetTransferPreview } from './application/use-cases/get-transfer-preview.use-case';
 import { ListUsers } from './application/use-cases/list-users.use-case';
 import { SeedInitialAdmin } from './application/use-cases/seed-initial-admin.use-case';
 import { TransferSellerBranch } from './application/use-cases/transfer-seller-branch.use-case';
@@ -37,6 +38,7 @@ import { BcryptPasswordHasher } from './infrastructure/services/bcrypt-password-
     ListUsers,
     UpdateUser,
     TransferSellerBranch,
+    GetTransferPreview,
     BootstrapFirstAdmin,
     SeedInitialAdmin,
     UsersBootstrapService,

@@ -30,10 +30,18 @@ export interface UsersRepository {
   findByIds(ids: string[]): Promise<User[]>;
   count(options: Omit<FindUsersOptions, 'limit' | 'offset'>): Promise<number>;
   countAll(): Promise<number>;
+  /** Returns the count of tickets and movements belonging to a seller. */
+  getTransferCounts(
+    userId: string,
+  ): Promise<{ ticketCount: number; movementCount: number }>;
+
   /**
-   * Transfers a seller to a new branch in a single atomic transaction:
-   * updates users.sale_point_id, tickets.sale_point_id, and
-   * movements.sale_point_id for all records belonging to this seller.
+   * Transfers a seller to a new branch in idempotent chunks of 500 rows.
+   * Each chunk is its own mini-transaction to avoid holding a giant lock.
+   * Returns the count of records actually moved.
    */
-  transferBranch(userId: string, newSalePointId: string): Promise<void>;
+  transferBranch(
+    userId: string,
+    newSalePointId: string,
+  ): Promise<{ ticketsMoved: number; movementsMoved: number }>;
 }

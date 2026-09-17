@@ -1,6 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { UseCase } from '../../../../shared/application/use-case';
 import {
   NotFoundError,
   ValidationError,
@@ -14,23 +13,19 @@ import {
   type UsersRepository,
 } from '../../domain/repositories/users.repository';
 import { UserRole } from '../../domain/value-objects/user-role';
-import { toUserOutput, type UserOutput } from '../dtos/user.output';
 
-export interface TransferSellerBranchInput {
+export interface GetTransferPreviewInput {
   userId: string;
   newSalePointId: string;
 }
 
-export interface TransferSellerBranchOutput {
-  user: UserOutput;
-  ticketsMoved: number;
-  movementsMoved: number;
+export interface GetTransferPreviewOutput {
+  ticketCount: number;
+  movementCount: number;
 }
 
 @Injectable()
-export class TransferSellerBranch
-  implements UseCase<TransferSellerBranchInput, TransferSellerBranchOutput>
-{
+export class GetTransferPreview {
   constructor(
     @Inject(USERS_REPOSITORY) private readonly users: UsersRepository,
     @Inject(SALE_POINTS_REPOSITORY)
@@ -38,8 +33,8 @@ export class TransferSellerBranch
   ) {}
 
   async execute(
-    input: TransferSellerBranchInput,
-  ): Promise<TransferSellerBranchOutput> {
+    input: GetTransferPreviewInput,
+  ): Promise<GetTransferPreviewOutput> {
     const user = await this.users.findById(input.userId);
     if (!user) throw new NotFoundError('User', input.userId);
 
@@ -58,12 +53,6 @@ export class TransferSellerBranch
       throw new NotFoundError('SalePoint', input.newSalePointId);
     }
 
-    const { ticketsMoved, movementsMoved } = await this.users.transferBranch(
-      input.userId,
-      input.newSalePointId,
-    );
-
-    const updated = await this.users.findById(input.userId);
-    return { user: toUserOutput(updated!), ticketsMoved, movementsMoved };
+    return this.users.getTransferCounts(input.userId);
   }
 }

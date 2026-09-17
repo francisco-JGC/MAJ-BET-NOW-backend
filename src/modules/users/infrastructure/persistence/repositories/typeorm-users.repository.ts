@@ -63,18 +63,67 @@ export class TypeOrmUsersRepository implements UsersRepository {
     return this.repo.count();
   }
 
-  async transferBranch(userId: string, newSalePointId: string): Promise<void> {
-    await this.repo.manager.transaction(async (em) => {
-      await em.update(UserOrmEntity, { id: userId }, { salePointId: newSalePointId });
-      await em.query(
-        `UPDATE tickets SET sale_point_id = $1 WHERE seller_id = $2`,
-        [newSalePointId, userId],
+  async getTransferCounts(
+    userId: string,
+  ): Promise<{ ticketCount: number; movementCount: number }> {
+    const [{ count: tc }]: [{ count: string }] =
+      await this.repo.manager.query(
+        `SELECT COUNT(*) AS count FROM tickets WHERE seller_id = $1`,
+        [userId],
       );
-      await em.query(
-        `UPDATE movements SET sale_point_id = $1 WHERE seller_id = $2`,
-        [newSalePointId, userId],
+    const [{ count: mc }]: [{ count: string }] =
+      await this.repo.manager.query(
+        `SELECT COUNT(*) AS count FROM movements WHERE seller_id = $1`,
+        [userId],
       );
-    });
+    return { ticketCount: Number(tc), movementCount: Number(mc) };
+  }
+
+  async transferBranch(
+    userId: string,
+    newSalePointId: string,
+  ): Promise<{ ticketsMoved: number; movementsMoved: number }> {
+    const CHUNK = 500;
+
+    // Update the user's own sale_point_id first so re-runs are idempotent.
+    await this.repo.update({ id: userId }, { salePointId: newSalePointId });
+
+    // Chunk tickets: each iteration picks up to CHUNK rows still on the old
+    // branch and moves them. Stops when no rows are returned.
+    let ticketsMoved = 0;
+    for (;;) {
+      const rows: { id: string }[] = await this.repo.manager.query(
+        `UPDATE tickets SET sale_point_id = $1
+         WHERE id IN (
+           SELECT id FROM tickets
+           WHERE seller_id = $2 AND sale_point_id <> $1
+           LIMIT $3
+         )
+         RETURNING id`,
+        [newSalePointId, userId, CHUNK],
+      );
+      ticketsMoved += rows.length;
+      if (rows.length < CHUNK) break;
+    }
+
+    // Chunk movements the same way.
+    let movementsMoved = 0;
+    for (;;) {
+      const rows: { id: string }[] = await this.repo.manager.query(
+        `UPDATE movements SET sale_point_id = $1
+         WHERE id IN (
+           SELECT id FROM movements
+           WHERE seller_id = $2 AND sale_point_id <> $1
+           LIMIT $3
+         )
+         RETURNING id`,
+        [newSalePointId, userId, CHUNK],
+      );
+      movementsMoved += rows.length;
+      if (rows.length < CHUNK) break;
+    }
+
+    return { ticketsMoved, movementsMoved };
   }
 
   private buildWhere(
