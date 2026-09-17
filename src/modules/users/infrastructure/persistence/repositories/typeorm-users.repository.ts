@@ -79,6 +79,23 @@ export class TypeOrmUsersRepository implements UsersRepository {
     return { ticketCount: Number(tc), movementCount: Number(mc) };
   }
 
+  async getSyncCounts(
+    userId: string,
+    currentSalePointId: string,
+  ): Promise<{ ticketCount: number; movementCount: number }> {
+    const [{ count: tc }]: [{ count: string }] =
+      await this.repo.manager.query(
+        `SELECT COUNT(*) AS count FROM tickets WHERE seller_id = $1 AND sale_point_id <> $2`,
+        [userId, currentSalePointId],
+      );
+    const [{ count: mc }]: [{ count: string }] =
+      await this.repo.manager.query(
+        `SELECT COUNT(*) AS count FROM movements WHERE seller_id = $1 AND sale_point_id <> $2`,
+        [userId, currentSalePointId],
+      );
+    return { ticketCount: Number(tc), movementCount: Number(mc) };
+  }
+
   async transferBranch(
     userId: string,
     newSalePointId: string,

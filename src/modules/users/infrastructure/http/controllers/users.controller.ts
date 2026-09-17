@@ -28,6 +28,14 @@ import {
   TransferSellerBranch,
   type TransferSellerBranchOutput,
 } from '../../../application/use-cases/transfer-seller-branch.use-case';
+import {
+  GetSyncPreview,
+  type GetSyncPreviewOutput,
+} from '../../../application/use-cases/get-sync-preview.use-case';
+import {
+  SyncSellerBranch,
+  type SyncSellerBranchOutput,
+} from '../../../application/use-cases/sync-seller-branch.use-case';
 import { UpdateMobileSalesProfile } from '../../../application/use-cases/update-mobile-sales-profile.use-case';
 import { UpdateUser } from '../../../application/use-cases/update-user.use-case';
 import { UserOutput } from '../../../application/dtos/user.output';
@@ -48,6 +56,8 @@ export class UsersController {
     private readonly updateUser: UpdateUser,
     private readonly transferSellerBranch: TransferSellerBranch,
     private readonly getTransferPreview: GetTransferPreview,
+    private readonly getSyncPreviewUC: GetSyncPreview,
+    private readonly syncSellerBranchUC: SyncSellerBranch,
     private readonly bootstrapFirstAdmin: BootstrapFirstAdmin,
     private readonly updateMobileSalesProfile: UpdateMobileSalesProfile,
   ) {}
@@ -153,5 +163,21 @@ export class UsersController {
       userId: id,
       newSalePointId: dto.newSalePointId,
     });
+  }
+
+  @Get(':id/sync-branch/preview')
+  @Roles(UserRole.ADMIN)
+  syncPreview(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<GetSyncPreviewOutput> {
+    return this.getSyncPreviewUC.execute(id);
+  }
+
+  @Post(':id/sync-branch')
+  @Roles(UserRole.ADMIN)
+  syncBranch(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<SyncSellerBranchOutput> {
+    return this.syncSellerBranchUC.execute(id);
   }
 }

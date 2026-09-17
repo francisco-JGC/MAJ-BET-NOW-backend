@@ -35,6 +35,12 @@ export interface UsersRepository {
     userId: string,
   ): Promise<{ ticketCount: number; movementCount: number }>;
 
+  /** Counts tickets/movements for a seller that are NOT in their current branch. */
+  getSyncCounts(
+    userId: string,
+    currentSalePointId: string,
+  ): Promise<{ ticketCount: number; movementCount: number }>;
+
   /**
    * Transfers a seller to a new branch in idempotent chunks of 500 rows.
    * Each chunk is its own mini-transaction to avoid holding a giant lock.
