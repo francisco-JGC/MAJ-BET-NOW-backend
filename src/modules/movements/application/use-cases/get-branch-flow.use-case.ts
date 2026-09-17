@@ -136,7 +136,17 @@ export class GetBranchFlow
         m.description       AS description,
         m.id::text          AS ref_id
       FROM movements m
-      WHERE m.sale_point_id = $1::uuid
+      WHERE (
+        m.sale_point_id = $1::uuid
+        OR (
+          m.sale_point_id IS NULL
+          AND m.seller_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM users u
+            WHERE u.id = m.seller_id AND u.sale_point_id = $1::uuid
+          )
+        )
+      )
         AND ($2::timestamptz IS NULL OR m.occurred_at >= $2::timestamptz)
         AND ($3::timestamptz IS NULL OR m.occurred_at <  $3::timestamptz)
 

@@ -88,9 +88,12 @@ export class TypeOrmUsersRepository implements UsersRepository {
         `SELECT COUNT(*) AS count FROM tickets WHERE seller_id = $1 AND sale_point_id <> $2`,
         [userId, currentSalePointId],
       );
+    // movements.sale_point_id is nullable: IS NULL rows are also out-of-sync
+    // because NULL != currentSalePointId in SQL never evaluates to TRUE.
     const [{ count: mc }]: [{ count: string }] =
       await this.repo.manager.query(
-        `SELECT COUNT(*) AS count FROM movements WHERE seller_id = $1 AND sale_point_id <> $2`,
+        `SELECT COUNT(*) AS count FROM movements
+         WHERE seller_id = $1 AND (sale_point_id IS NULL OR sale_point_id <> $2)`,
         [userId, currentSalePointId],
       );
     return { ticketCount: Number(tc), movementCount: Number(mc) };
@@ -105,8 +108,7 @@ export class TypeOrmUsersRepository implements UsersRepository {
     // Update the user's own sale_point_id first so re-runs are idempotent.
     await this.repo.update({ id: userId }, { salePointId: newSalePointId });
 
-    // Chunk tickets: each iteration picks up to CHUNK rows still on the old
-    // branch and moves them. Stops when no rows are returned.
+    // Chunk tickets. tickets.sale_point_id is NOT NULL so <> is always safe.
     let ticketsMoved = 0;
     for (;;) {
       const rows: { id: string }[] = await this.repo.manager.query(
@@ -123,14 +125,17 @@ export class TypeOrmUsersRepository implements UsersRepository {
       if (rows.length < CHUNK) break;
     }
 
-    // Chunk movements the same way.
+    // Chunk movements. movements.sale_point_id IS nullable: include IS NULL rows
+    // so seller-level movements (no explicit branch) are stamped to the new branch.
+    // Without this, NULL <> $1 evaluates to NULL (not TRUE) and those rows are skipped.
     let movementsMoved = 0;
     for (;;) {
       const rows: { id: string }[] = await this.repo.manager.query(
         `UPDATE movements SET sale_point_id = $1
          WHERE id IN (
            SELECT id FROM movements
-           WHERE seller_id = $2 AND sale_point_id <> $1
+           WHERE seller_id = $2
+             AND (sale_point_id IS NULL OR sale_point_id <> $1)
            LIMIT $3
          )
          RETURNING id`,
