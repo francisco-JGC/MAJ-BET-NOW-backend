@@ -274,8 +274,8 @@ export class GetMovementsBalance
       const net =
         billed -
         wonPrize -
-        (partnerSalary ?? 0) +
-        deposits -
+        (partnerSalary ?? 0) -
+        deposits +
         withdrawals -
         expenses +
         adjustments;

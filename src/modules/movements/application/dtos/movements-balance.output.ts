@@ -4,7 +4,7 @@
  * deposits, withdrawals, adjustments). All amounts in centavos.
  *
  * Formula:
- *   net = billed - wonPrize - partnerSalary + deposits - withdrawals - expenses + adjustments
+ *   net = billed - wonPrize - partnerSalary - deposits + withdrawals - expenses + adjustments
  *
  * `wonPrize` es la deuda total con los ganadores (evaluada contra draws).
  * `partnerSalary` es el salario del encargado según el % configurado;
@@ -49,7 +49,9 @@ export interface MovementsBalanceRow {
   adjustments: number;
   /**
    * Final cash balance for the range:
-   *   billed - wonPrize - partnerSalary + deposits - withdrawals - expenses + adjustments
+   *   billed - wonPrize - partnerSalary - deposits + withdrawals - expenses + adjustments
+   * Cobros (deposits) restan: el admin ya cobró ese dinero.
+   * Ajustes de premio (withdrawals) suman: el admin pagó un premio por la sucursal.
    */
   net: number;
 }
