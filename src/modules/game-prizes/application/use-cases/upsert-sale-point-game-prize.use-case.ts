@@ -102,7 +102,9 @@ export class UpsertSalePointGamePrize
         );
       }
     }
-    if (game.slug !== 'juega3' && input.pairEasyMultiplier !== null) {
+    // Only games that have pair_easy_multiplier configured at the global level
+    // can have it overridden per sale-point.
+    if (game.pairEasyMultiplier === null && input.pairEasyMultiplier !== null) {
       throw new ValidationError(
         `Game "${game.slug}" does not accept a pair-easy multiplier override`,
       );
