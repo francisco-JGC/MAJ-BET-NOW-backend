@@ -7,7 +7,7 @@ export class EnableJ3HondurasPairPrize1784130000000
     await queryRunner.query(`
       UPDATE games
         SET pair_easy_multiplier = 200
-        WHERE slug = 'j3honduras'
+        WHERE slug = 'gana3'
     `);
   }
 
@@ -15,7 +15,7 @@ export class EnableJ3HondurasPairPrize1784130000000
     await queryRunner.query(`
       UPDATE games
         SET pair_easy_multiplier = NULL
-        WHERE slug = 'j3honduras'
+        WHERE slug = 'gana3'
     `);
   }
 }
