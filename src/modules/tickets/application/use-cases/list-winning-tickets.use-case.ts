@@ -94,8 +94,8 @@ export class ListWinningTickets
       salePointIds: partnerScope,
       gameId: input.gameId,
       status: TicketStatus.VALID,
-      from: isSearching ? undefined : input.from,
-      to: isSearching ? undefined : input.to,
+      drawFrom: isSearching ? undefined : input.from,
+      drawTo: isSearching ? undefined : input.to,
       drawTime: isSearching ? undefined : input.drawTime,
       search: isSearching ? searchTerm : undefined,
       // Alineado con `GetMovementsBalance.computeWonBySalePoint` y

@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -271,6 +273,7 @@ export class TicketsController {
   }
 
   @Post(':id/pay')
+  @HttpCode(HttpStatus.OK)
   pay(
     @CurrentUser() user: RequestUser,
     @Param('id', new ParseUUIDPipe()) id: string,
