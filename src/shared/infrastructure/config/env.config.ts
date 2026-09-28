@@ -53,7 +53,7 @@ export const envSchema = Joi.object({
   DB_NAME: Joi.string().optional(),
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_EXPIRES_IN: Joi.string().default('24h'),
-  JWT_REFRESH_EXPIRES_IN: Joi.string().default('30d'),
+  JWT_REFRESH_EXPIRES_IN: Joi.string().default('365d'),
   // Bootstrap admin — opcionales. Sin el trio completo, el bootstrap no
   // crea nada. El password mínimo 8 chars es un piso de seguridad
   // razonable para prod (el admin puede cambiarlo desde el panel después).
@@ -91,7 +91,7 @@ export const envLoader = (): AppConfig => ({
   jwt: {
     secret: process.env.JWT_SECRET!,
     expiresIn: process.env.JWT_EXPIRES_IN ?? '24h',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '365d',
   },
   initialAdmin: {
     username: process.env.INITIAL_ADMIN_USERNAME ?? null,
