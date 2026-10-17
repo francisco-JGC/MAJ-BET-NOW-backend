@@ -22,13 +22,14 @@ export interface RouletteConfigProps {
   /** Paga `multiplier × monto apostado al número acertado`. */
   prizeMultiplier: number;
   /**
-   * Modo prueba de la sucursal. Se decide desde la web y NO desde la app:
-   * si el vendedor pudiera activarlo, podría marcar como prueba tiradas
-   * que en el mostrador cobró de verdad.
+   * Habilita el modo prueba para la sucursal. Es un PERMISO, no un estado:
+   * con esto en true el vendedor puede elegir, tirada por tirada, si la
+   * juega de prueba o real.
    *
-   * Con el modo activo la tirada se registra en el historial de ruleta
-   * para auditoría, pero no genera ticket ni sorteo: no entra a facturas,
-   * ni a la cuenta del vendedor, ni a ganadores.
+   * El permiso lo da el admin desde la web, y no se delega: una tirada de
+   * prueba no deja rastro en facturación, así que un vendedor que pudiera
+   * habilitarla solo podría cobrarle al cliente y quedarse con la plata
+   * sin que la casa registre la venta.
    */
   testMode: boolean;
   createdAt: Date;

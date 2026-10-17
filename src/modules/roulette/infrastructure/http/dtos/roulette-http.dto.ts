@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsBoolean,
@@ -29,6 +29,15 @@ export class PlayRouletteHttpDto {
   @IsInt()
   @Min(1)
   amountPerNumber!: number;
+
+  /**
+   * Tirada de prueba. Solo se respeta si la sucursal tiene el modo
+   * habilitado; si no, el servidor la trata como real.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  isTest?: boolean;
 }
 
 export class UpsertRouletteConfigHttpDto {
@@ -81,4 +90,13 @@ export class ListRoulettePlaysQueryDto {
   @IsInt()
   @Min(0)
   offset?: number;
+
+  /**
+   * Incluir las tiradas de prueba. Solo tiene efecto para admin: un
+   * vendedor no debería poder listar lo que no cuenta como venta.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  includeTest?: boolean;
 }

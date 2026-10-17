@@ -28,6 +28,8 @@ export interface PlayRouletteInput {
   playerId: string;
   numbers: string[];
   amountPerNumber: number;
+  /** Lo elige el vendedor; solo vale si la sucursal lo tiene habilitado. */
+  isTest?: boolean;
 }
 
 /**
@@ -75,10 +77,10 @@ export class PlayRoulette
       isWin: outcome.isWin,
       winPercentBps: config.winPercentBps,
       prizeMultiplier: config.prizeMultiplier,
-      // Lo decide la configuración de la sucursal, no el cliente: si el
-      // vendedor pudiera mandarlo, podría marcar como prueba una tirada
-      // que cobró de verdad.
-      isTest: config.testMode,
+      // El vendedor elige, pero solo dentro de lo que el admin habilitó.
+      // Si la sucursal no permite pruebas, cualquier `isTest` que llegue
+      // se ignora: la tirada es real y factura.
+      isTest: config.testMode && (input.isTest ?? false),
     });
 
     // La tirada SIEMPRE se guarda en el historial de ruleta, de prueba o

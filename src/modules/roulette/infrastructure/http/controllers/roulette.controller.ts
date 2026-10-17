@@ -56,6 +56,7 @@ export class RouletteController {
       playerId: user.id,
       numbers: dto.numbers,
       amountPerNumber: dto.amountPerNumber,
+      isTest: dto.isTest ?? false,
     });
   }
 
@@ -73,6 +74,11 @@ export class RouletteController {
       to: query.to ? new Date(query.to) : undefined,
       limit: query.limit ?? 50,
       offset: query.offset ?? 0,
+      // Solo el admin puede pedir las de prueba. Para el resto se ignora
+      // aunque venga en la query: no es una preferencia de UI, es a quién
+      // le corresponde ver lo que no facturó.
+      includeTest:
+        user.role === UserRole.ADMIN ? (query.includeTest ?? false) : false,
     });
   }
 
