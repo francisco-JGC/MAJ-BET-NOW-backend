@@ -6,6 +6,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
+import { RouletteModule } from './modules/roulette/roulette.module';
 import { GamePrizesModule } from './modules/game-prizes/game-prizes.module';
 import { GamesModule } from './modules/games/games.module';
 import { LuckyModule } from './modules/lucky/lucky.module';
@@ -44,6 +45,7 @@ import { DatabaseModule } from './shared/infrastructure/persistence/database.mod
     SaleLimitsBySellerNumberModule,
     GamePrizesModule,
     FeatureFlagsModule,
+    RouletteModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: DomainExceptionFilter }],
