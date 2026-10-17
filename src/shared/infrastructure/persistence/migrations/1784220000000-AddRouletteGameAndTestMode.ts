@@ -22,7 +22,9 @@ export class AddRouletteGameAndTestMode1784220000000
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `ALTER TABLE "roulette_configs" ADD COLUMN "test_mode" boolean NOT NULL DEFAULT false`,
+      // Arranca habilitado: así la ruleta se puede probar apenas se
+      // despliega, sin tener que entrar a la web a destrabarla.
+      `ALTER TABLE "roulette_configs" ADD COLUMN "test_mode" boolean NOT NULL DEFAULT true`,
     );
 
     // Se ubica al final de la grilla. Igual que en el alta de Juga 4, el

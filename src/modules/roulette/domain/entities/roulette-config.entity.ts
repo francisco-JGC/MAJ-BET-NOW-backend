@@ -30,6 +30,9 @@ export interface RouletteConfigProps {
    * prueba no deja rastro en facturación, así que un vendedor que pudiera
    * habilitarla solo podría cobrarle al cliente y quedarse con la plata
    * sin que la casa registre la venta.
+   *
+   * Arranca habilitado para que el juego sea probable apenas se despliega.
+   * Conviene apagarlo una vez calibrado.
    */
   testMode: boolean;
   createdAt: Date;
@@ -56,7 +59,7 @@ export class RouletteConfig extends AggregateRoot<RouletteConfigProps> {
       salePointId: input.salePointId ?? null,
       winPercentBps,
       prizeMultiplier,
-      testMode: input.testMode ?? false,
+      testMode: input.testMode ?? true,
       createdAt: now,
       updatedAt: now,
     });
