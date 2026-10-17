@@ -39,6 +39,7 @@ export class RoulettePlayMapper {
       prize: orm.prize,
       winPercentBps: orm.winPercentBps,
       prizeMultiplier: orm.prizeMultiplier,
+      isTest: orm.isTest,
       createdAt: orm.createdAt,
     });
   }
@@ -56,6 +57,7 @@ export class RoulettePlayMapper {
     entity.prize = play.prize;
     entity.winPercentBps = play.winPercentBps;
     entity.prizeMultiplier = play.prizeMultiplier;
+    entity.isTest = play.isTest;
     entity.createdAt = play.createdAt;
     return entity;
   }

@@ -27,6 +27,8 @@ export interface PlayRouletteInput {
   playerId: string;
   numbers: string[];
   amountPerNumber: number;
+  /** Jugada de prueba: se registra marcada y no cuenta como venta. */
+  isTest?: boolean;
 }
 
 /**
@@ -73,6 +75,7 @@ export class PlayRoulette
       isWin: outcome.isWin,
       winPercentBps: config.winPercentBps,
       prizeMultiplier: config.prizeMultiplier,
+      isTest: input.isTest ?? false,
     });
 
     await this.plays.save(play);

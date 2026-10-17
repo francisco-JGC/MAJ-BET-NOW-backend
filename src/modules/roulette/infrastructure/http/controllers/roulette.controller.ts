@@ -56,6 +56,7 @@ export class RouletteController {
       playerId: user.id,
       numbers: dto.numbers,
       amountPerNumber: dto.amountPerNumber,
+      isTest: dto.isTest ?? false,
     });
   }
 

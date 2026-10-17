@@ -32,6 +32,7 @@ export interface RoulettePlayOutput {
   prize: number;
   winPercentBps: number;
   prizeMultiplier: number;
+  isTest: boolean;
   createdAt: Date;
 }
 
@@ -47,5 +48,6 @@ export const toRoulettePlayOutput = (p: RoulettePlay): RoulettePlayOutput => ({
   prize: p.prize,
   winPercentBps: p.winPercentBps,
   prizeMultiplier: p.prizeMultiplier,
+  isTest: p.isTest,
   createdAt: p.createdAt,
 });

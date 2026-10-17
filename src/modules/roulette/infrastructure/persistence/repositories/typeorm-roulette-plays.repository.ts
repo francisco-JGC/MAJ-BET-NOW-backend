@@ -76,6 +76,9 @@ export class TypeOrmRoulettePlaysRepository implements RoulettePlaysRepository {
     if (filter.to) {
       qb.andWhere('p.created_at <= :to', { to: filter.to });
     }
+    if (!filter.includeTest) {
+      qb.andWhere('p.is_test = false');
+    }
     return qb;
   }
 }

@@ -58,6 +58,11 @@ export class RoulettePlayOrmEntity {
   @Column({ type: 'integer', name: 'prize_multiplier' })
   prizeMultiplier!: number;
 
+  /// Jugada de prueba: fuera de ventas, historial y caja.
+  @Index()
+  @Column({ type: 'boolean', name: 'is_test', default: false })
+  isTest!: boolean;
+
   @Index()
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

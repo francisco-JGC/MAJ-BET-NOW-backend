@@ -24,6 +24,13 @@ export interface RoulettePlayProps {
    */
   winPercentBps: number;
   prizeMultiplier: number;
+  /**
+   * Jugada de prueba: no cuenta como venta ni aparece en el historial
+   * operativo. Se persiste igual —con la marca— en vez de no guardarse,
+   * para que una racha rara pueda auditarse y se distinga "nadie jugó" de
+   * "se jugó en prueba".
+   */
+  isTest: boolean;
   createdAt: Date;
 }
 
@@ -41,6 +48,7 @@ export class RoulettePlay extends AggregateRoot<RoulettePlayProps> {
     isWin: boolean;
     winPercentBps: number;
     prizeMultiplier: number;
+    isTest?: boolean;
   }): RoulettePlay {
     if (!Number.isInteger(input.amountPerNumber) || input.amountPerNumber < 1) {
       throw new ValidationError('El monto por número debe ser un entero mayor a 0');
@@ -62,6 +70,7 @@ export class RoulettePlay extends AggregateRoot<RoulettePlayProps> {
       prize: input.isWin ? input.amountPerNumber * input.prizeMultiplier : 0,
       winPercentBps: input.winPercentBps,
       prizeMultiplier: input.prizeMultiplier,
+      isTest: input.isTest ?? false,
       createdAt: new Date(),
     });
   }
@@ -80,10 +89,12 @@ export class RoulettePlay extends AggregateRoot<RoulettePlayProps> {
   get prize(): number { return this.props.prize; }
   get winPercentBps(): number { return this.props.winPercentBps; }
   get prizeMultiplier(): number { return this.props.prizeMultiplier; }
+  get isTest(): boolean { return this.props.isTest; }
   get createdAt(): Date { return this.props.createdAt; }
 
   /** Resultado neto para la casa: lo apostado menos lo pagado. */
   get houseNet(): number {
+    if (this.props.isTest) return 0;
     return this.props.totalAmount - this.props.prize;
   }
 }

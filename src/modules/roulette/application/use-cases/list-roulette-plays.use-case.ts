@@ -21,6 +21,8 @@ export interface ListRoulettePlaysInput {
   to?: Date;
   limit: number;
   offset: number;
+  /** Incluir jugadas de prueba. Por defecto false. */
+  includeTest?: boolean;
 }
 
 export interface ListRoulettePlaysOutput {
@@ -64,6 +66,7 @@ export class ListRoulettePlays
       playerId,
       from: input.from,
       to: input.to,
+      includeTest: input.includeTest ?? false,
     };
 
     const [page, totals] = await Promise.all([

@@ -7,6 +7,12 @@ export interface ListRoulettePlaysFilter {
   playerId?: string;
   from?: Date;
   to?: Date;
+  /**
+   * Por defecto el historial muestra SOLO jugadas reales. Las de prueba se
+   * piden explícitamente; si no, una tanda de pruebas ensuciaría la caja y
+   * los totales del vendedor.
+   */
+  includeTest?: boolean;
   limit: number;
   offset: number;
 }

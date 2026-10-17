@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  IsBoolean,
   ArrayMinSize,
   IsArray,
   IsInt,
@@ -28,6 +29,11 @@ export class PlayRouletteHttpDto {
   @IsInt()
   @Min(1)
   amountPerNumber!: number;
+
+  /** Jugada de prueba: queda fuera de ventas e historial operativo. */
+  @IsOptional()
+  @IsBoolean()
+  isTest?: boolean;
 }
 
 export class UpsertRouletteConfigHttpDto {
