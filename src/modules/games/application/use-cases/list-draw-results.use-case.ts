@@ -1,3 +1,4 @@
+import { GameType } from '../../domain/value-objects/game-type';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { UseCase } from '../../../../shared/application/use-case';
@@ -30,6 +31,9 @@ export class ListDrawResults
   async execute(input: ListDrawResultsInput): Promise<DrawResultOutput[]> {
     const items = await this.results.findMany({
       gameId: input.gameId,
+      // Salvo que se pida ese juego explícitamente, la ruleta queda fuera:
+      // genera un sorteo por tirada y taparía los sorteos reales.
+      excludeTypes: input.gameId ? undefined : [GameType.ROULETTE],
       from: input.from,
       to: input.to,
       limit: input.limit,

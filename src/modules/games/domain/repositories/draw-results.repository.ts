@@ -8,6 +8,13 @@ export interface DrawResultsFilters {
   to?: Date;
   limit?: number;
   offset?: number;
+  /**
+   * Excluir tipos de juego del listado. Se usa para dejar afuera la
+   * ruleta: cada tirada genera su propio sorteo, así que en la pantalla de
+   * resultados sepultaría a los sorteos reales. Sigue contando en
+   * facturas, ganadores y la cuenta del vendedor.
+   */
+  excludeTypes?: string[];
 }
 
 export interface DrawResultsRepository {

@@ -54,6 +54,12 @@ export class TypeOrmDrawResultsRepository implements DrawResultsRepository {
       params.push(filters.to);
       conditions.push(`dr.draw_at <= $${params.length}::timestamptz`);
     }
+    if (filters.excludeTypes?.length) {
+      params.push(filters.excludeTypes);
+      conditions.push(
+        `dr.game_id NOT IN (SELECT id FROM games WHERE type = ANY($${params.length}::text[]))`,
+      );
+    }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     let limitClause = '';
