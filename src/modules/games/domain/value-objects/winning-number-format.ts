@@ -18,6 +18,10 @@ export class WinningNumberFormat {
         return WinningNumberFormat.normalizeDigits(value, 4, 0, 9999);
       case GameType.DATE:
         return WinningNumberFormat.normalizeDate(value);
+      case GameType.ROULETTE:
+        // Casillas de ruleta: '0', '00' y '1'-'36'. No se puede normalizar
+        // como número — '0' y '00' colapsarían al mismo valor.
+        return WinningNumberFormat.normalizeRoulette(value);
       case GameType.MULTI_SORTEO:
         throw new ValidationError(
           'Multi Sorteo does not accept its own draw result; ' +
@@ -79,5 +83,17 @@ export class WinningNumberFormat {
       );
     }
     return `${day.toString().padStart(2, '0')}-${monthAbbr}`;
+  }
+
+  private static normalizeRoulette(value: string): string {
+    const v = value.trim();
+    if (v === '0' || v === '00') return v;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 36) {
+      throw new ValidationError(
+        `"${value}" no es una casilla de ruleta válida (0, 00, 1-36)`,
+      );
+    }
+    return String(n);
   }
 }

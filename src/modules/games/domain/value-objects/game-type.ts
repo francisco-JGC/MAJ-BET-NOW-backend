@@ -4,4 +4,6 @@ export enum GameType {
   THREE_DIGIT = 'three_digit',
   FOUR_DIGIT = 'four_digit',
   MULTI_SORTEO = 'multi_sorteo',
+  /** Minijuego instantáneo: cada tirada es su propio sorteo. */
+  ROULETTE = 'roulette',
 }

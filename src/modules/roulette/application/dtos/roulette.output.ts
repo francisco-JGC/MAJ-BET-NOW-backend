@@ -6,6 +6,7 @@ export interface RouletteConfigOutput {
   salePointId: string | null;
   winPercentBps: number;
   prizeMultiplier: number;
+  testMode: boolean;
   /** Retorno al jugador en basis points. >10000 significa casa perdiendo. */
   rtpBps: number;
   updatedAt: Date;
@@ -16,6 +17,7 @@ export const toRouletteConfigOutput = (c: RouletteConfig): RouletteConfigOutput 
   salePointId: c.salePointId,
   winPercentBps: c.winPercentBps,
   prizeMultiplier: c.prizeMultiplier,
+  testMode: c.testMode,
   rtpBps: c.rtpBps,
   updatedAt: c.updatedAt,
 });

@@ -19,6 +19,7 @@ import {
   toRoulettePlayOutput,
   type RoulettePlayOutput,
 } from '../dtos/roulette.output';
+import { RouletteAccounting } from '../services/roulette-accounting.service';
 import { SpinResolver } from '../services/spin-resolver.service';
 import { ResolveRouletteConfig } from './resolve-roulette-config.use-case';
 
@@ -27,8 +28,6 @@ export interface PlayRouletteInput {
   playerId: string;
   numbers: string[];
   amountPerNumber: number;
-  /** Jugada de prueba: se registra marcada y no cuenta como venta. */
-  isTest?: boolean;
 }
 
 /**
@@ -48,6 +47,7 @@ export class PlayRoulette
     private readonly salePoints: SalePointsRepository,
     private readonly resolveConfig: ResolveRouletteConfig,
     private readonly spin: SpinResolver,
+    private readonly accounting: RouletteAccounting,
   ) {}
 
   async execute(input: PlayRouletteInput): Promise<RoulettePlayOutput> {
@@ -75,10 +75,21 @@ export class PlayRoulette
       isWin: outcome.isWin,
       winPercentBps: config.winPercentBps,
       prizeMultiplier: config.prizeMultiplier,
-      isTest: input.isTest ?? false,
+      // Lo decide la configuración de la sucursal, no el cliente: si el
+      // vendedor pudiera mandarlo, podría marcar como prueba una tirada
+      // que cobró de verdad.
+      isTest: config.testMode,
     });
 
+    // La tirada SIEMPRE se guarda en el historial de ruleta, de prueba o
+    // no, para que una racha llamativa pueda auditarse. Lo que cambia es
+    // si además entra a la contabilidad.
     await this.plays.save(play);
+
+    if (!play.isTest) {
+      await this.accounting.register(play);
+    }
+
     return toRoulettePlayOutput(play);
   }
 }

@@ -29,11 +29,6 @@ export class PlayRouletteHttpDto {
   @IsInt()
   @Min(1)
   amountPerNumber!: number;
-
-  /** Jugada de prueba: queda fuera de ventas e historial operativo. */
-  @IsOptional()
-  @IsBoolean()
-  isTest?: boolean;
 }
 
 export class UpsertRouletteConfigHttpDto {
@@ -54,6 +49,11 @@ export class UpsertRouletteConfigHttpDto {
   @IsInt()
   @Min(1)
   prizeMultiplier?: number;
+
+  /** Modo prueba: las tiradas no generan ticket ni sorteo. */
+  @IsOptional()
+  @IsBoolean()
+  testMode?: boolean;
 }
 
 export class ListRoulettePlaysQueryDto {

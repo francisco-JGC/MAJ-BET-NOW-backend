@@ -21,6 +21,16 @@ export interface RouletteConfigProps {
   winPercentBps: number;
   /** Paga `multiplier × monto apostado al número acertado`. */
   prizeMultiplier: number;
+  /**
+   * Modo prueba de la sucursal. Se decide desde la web y NO desde la app:
+   * si el vendedor pudiera activarlo, podría marcar como prueba tiradas
+   * que en el mostrador cobró de verdad.
+   *
+   * Con el modo activo la tirada se registra en el historial de ruleta
+   * para auditoría, pero no genera ticket ni sorteo: no entra a facturas,
+   * ni a la cuenta del vendedor, ni a ganadores.
+   */
+  testMode: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +44,7 @@ export class RouletteConfig extends AggregateRoot<RouletteConfigProps> {
     salePointId?: string | null;
     winPercentBps?: number;
     prizeMultiplier?: number;
+    testMode?: boolean;
   }): RouletteConfig {
     const winPercentBps = input.winPercentBps ?? FAIR_WIN_PERCENT_BPS;
     const prizeMultiplier = input.prizeMultiplier ?? DEFAULT_PRIZE_MULTIPLIER;
@@ -44,6 +55,7 @@ export class RouletteConfig extends AggregateRoot<RouletteConfigProps> {
       salePointId: input.salePointId ?? null,
       winPercentBps,
       prizeMultiplier,
+      testMode: input.testMode ?? false,
       createdAt: now,
       updatedAt: now,
     });
@@ -62,6 +74,9 @@ export class RouletteConfig extends AggregateRoot<RouletteConfigProps> {
   get prizeMultiplier(): number {
     return this.props.prizeMultiplier;
   }
+  get testMode(): boolean {
+    return this.props.testMode;
+  }
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -79,7 +94,14 @@ export class RouletteConfig extends AggregateRoot<RouletteConfigProps> {
     return this.props.winPercentBps * (this.props.prizeMultiplier + 1);
   }
 
-  update(input: { winPercentBps?: number; prizeMultiplier?: number }): void {
+  update(input: {
+    winPercentBps?: number;
+    prizeMultiplier?: number;
+    testMode?: boolean;
+  }): void {
+    if (input.testMode !== undefined) {
+      this.props.testMode = input.testMode;
+    }
     if (input.winPercentBps !== undefined) {
       RouletteConfig.assertWinPercent(input.winPercentBps);
       this.props.winPercentBps = input.winPercentBps;

@@ -9,6 +9,7 @@ export class RouletteConfigMapper {
       salePointId: orm.salePointId,
       winPercentBps: orm.winPercentBps,
       prizeMultiplier: orm.prizeMultiplier,
+      testMode: orm.testMode,
       createdAt: orm.createdAt,
       updatedAt: orm.updatedAt,
     });
@@ -20,6 +21,7 @@ export class RouletteConfigMapper {
     entity.salePointId = config.salePointId;
     entity.winPercentBps = config.winPercentBps;
     entity.prizeMultiplier = config.prizeMultiplier;
+    entity.testMode = config.testMode;
     entity.createdAt = config.createdAt;
     entity.updatedAt = config.updatedAt;
     return entity;

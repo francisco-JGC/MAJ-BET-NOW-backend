@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { GamesModule } from '../games/games.module';
 import { SalePointsModule } from '../sale-points/sale-points.module';
+import { TicketsModule } from '../tickets/tickets.module';
 import { UsersModule } from '../users/users.module';
+import { RouletteAccounting } from './application/services/roulette-accounting.service';
 import { SpinResolver } from './application/services/spin-resolver.service';
 import { ListRoulettePlays } from './application/use-cases/list-roulette-plays.use-case';
 import { PlayRoulette } from './application/use-cases/play-roulette.use-case';
@@ -21,12 +24,15 @@ import { TypeOrmRoulettePlaysRepository } from './infrastructure/persistence/rep
     TypeOrmModule.forFeature([RouletteConfigOrmEntity, RoulettePlayOrmEntity]),
     SalePointsModule,
     UsersModule,
+    GamesModule,
+    TicketsModule,
   ],
   controllers: [RouletteController],
   providers: [
     { provide: ROULETTE_CONFIGS_REPOSITORY, useClass: TypeOrmRouletteConfigsRepository },
     { provide: ROULETTE_PLAYS_REPOSITORY, useClass: TypeOrmRoulettePlaysRepository },
     SpinResolver,
+    RouletteAccounting,
     ResolveRouletteConfig,
     PlayRoulette,
     ListRoulettePlays,

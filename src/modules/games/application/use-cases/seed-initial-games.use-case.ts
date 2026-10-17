@@ -31,6 +31,7 @@ const INITIAL_GAMES: readonly InitialGame[] = [
   { slug: 'salvadorena', name: 'Salvadoreña',    type: GameType.REGULAR,      exactMultiplier: 80,   easyMultiplier: null, pairEasyMultiplier: null },
   { slug: 'juga4',       name: 'Juga 4',         type: GameType.FOUR_DIGIT,   exactMultiplier: 6000, easyMultiplier: null, pairEasyMultiplier: null },
   { slug: 'multisorteo', name: 'Multi Sorteo',   type: GameType.MULTI_SORTEO, exactMultiplier: null, easyMultiplier: null, pairEasyMultiplier: null },
+  { slug: 'ruleta',      name: 'Ruleta',         type: GameType.ROULETTE,     exactMultiplier: 35,   easyMultiplier: null, pairEasyMultiplier: null },
 ];
 
 @Injectable()

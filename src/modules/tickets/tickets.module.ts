@@ -64,6 +64,13 @@ import { TimestampFolioGenerator } from './infrastructure/services/timestamp-fol
     ListWinningTickets,
     EvaluateTicketById,
   ],
-  exports: [ListWinningTickets, TICKETS_REPOSITORY, TicketEvaluator],
+  // FOLIO_GENERATOR se exporta para que la ruleta emita folios con el
+  // mismo formato que el resto de los boletos.
+  exports: [
+    ListWinningTickets,
+    TICKETS_REPOSITORY,
+    TicketEvaluator,
+    FOLIO_GENERATOR,
+  ],
 })
 export class TicketsModule {}

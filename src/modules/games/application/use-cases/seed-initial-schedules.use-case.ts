@@ -5,6 +5,7 @@ import {
   DRAW_SCHEDULES_REPOSITORY,
   type DrawSchedulesRepository,
 } from '../../domain/repositories/draw-schedules.repository';
+import { GameType } from '../../domain/value-objects/game-type';
 import {
   GAMES_REPOSITORY,
   type GamesRepository,
@@ -60,6 +61,10 @@ export class SeedInitialSchedules {
     const games = await this.games.findAll({ onlyActive: false });
     let created = 0;
     for (const game of games) {
+      // Los minijuegos instantáneos no tienen sorteos programados: cada
+      // jugada es su propio sorteo. Sembrarles horarios los haría aparecer
+      // en la pantalla de sorteos como si esperaran una hora.
+      if (game.type === GameType.ROULETTE) continue;
       const templates = OVERRIDES[game.slug] ?? DEFAULT_SCHEDULE;
       for (const t of templates) {
         const schedule = DrawSchedule.create({

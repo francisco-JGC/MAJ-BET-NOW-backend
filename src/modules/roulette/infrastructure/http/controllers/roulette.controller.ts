@@ -56,7 +56,6 @@ export class RouletteController {
       playerId: user.id,
       numbers: dto.numbers,
       amountPerNumber: dto.amountPerNumber,
-      isTest: dto.isTest ?? false,
     });
   }
 
@@ -97,6 +96,7 @@ export class RouletteController {
       salePointId: dto.salePointId ?? null,
       winPercentBps: dto.winPercentBps,
       prizeMultiplier: dto.prizeMultiplier,
+      testMode: dto.testMode,
     });
   }
 }

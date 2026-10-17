@@ -16,6 +16,7 @@ export interface UpsertRouletteConfigInput {
   salePointId: string | null;
   winPercentBps?: number;
   prizeMultiplier?: number;
+  testMode?: boolean;
 }
 
 @Injectable()
@@ -35,12 +36,14 @@ export class UpsertRouletteConfig
         salePointId: input.salePointId,
         winPercentBps: input.winPercentBps,
         prizeMultiplier: input.prizeMultiplier,
+        testMode: input.testMode,
       });
 
     if (existing) {
       existing.update({
         winPercentBps: input.winPercentBps,
         prizeMultiplier: input.prizeMultiplier,
+        testMode: input.testMode,
       });
     }
 

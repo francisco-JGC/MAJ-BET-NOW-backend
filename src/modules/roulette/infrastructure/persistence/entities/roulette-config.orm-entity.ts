@@ -35,6 +35,10 @@ export class RouletteConfigOrmEntity {
   @Column({ type: 'integer', name: 'prize_multiplier' })
   prizeMultiplier!: number;
 
+  /// Modo prueba: las tiradas se registran pero no generan ticket ni sorteo.
+  @Column({ type: 'boolean', name: 'test_mode', default: false })
+  testMode!: boolean;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

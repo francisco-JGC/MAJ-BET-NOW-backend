@@ -142,6 +142,10 @@ export class TicketEvaluator {
         }
         return digits === winningNumber;
       }
+      case GameType.ROULETTE:
+        // Comparación exacta de casilla: '0' y '00' son distintas, así que
+        // no se normaliza a número.
+        return label.trim() === winningNumber.trim();
       case GameType.MULTI_SORTEO:
         return false;
     }
