@@ -20,6 +20,7 @@ import {
   type RoulettePlayOutput,
 } from '../dtos/roulette.output';
 import { RouletteAccounting } from '../services/roulette-accounting.service';
+import { RouletteGameAccess } from '../services/roulette-game-access.service';
 import { SpinResolver } from '../services/spin-resolver.service';
 import { ResolveRouletteConfig } from './resolve-roulette-config.use-case';
 
@@ -49,9 +50,12 @@ export class PlayRoulette
     private readonly resolveConfig: ResolveRouletteConfig,
     private readonly spin: SpinResolver,
     private readonly accounting: RouletteAccounting,
+    private readonly gameAccess: RouletteGameAccess,
   ) {}
 
   async execute(input: PlayRouletteInput): Promise<RoulettePlayOutput> {
+    await this.gameAccess.assertEnabledForPlay();
+
     const salePoint = await this.salePoints.findById(input.salePointId);
     if (!salePoint) throw new NotFoundError('SalePoint', input.salePointId);
     if (!salePoint.isActive) {

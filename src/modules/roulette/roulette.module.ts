@@ -6,6 +6,7 @@ import { SalePointsModule } from '../sale-points/sale-points.module';
 import { TicketsModule } from '../tickets/tickets.module';
 import { UsersModule } from '../users/users.module';
 import { RouletteAccounting } from './application/services/roulette-accounting.service';
+import { RouletteGameAccess } from './application/services/roulette-game-access.service';
 import { SpinResolver } from './application/services/spin-resolver.service';
 import { ListRoulettePlays } from './application/use-cases/list-roulette-plays.use-case';
 import { PlayRoulette } from './application/use-cases/play-roulette.use-case';
@@ -33,6 +34,7 @@ import { TypeOrmRoulettePlaysRepository } from './infrastructure/persistence/rep
     { provide: ROULETTE_PLAYS_REPOSITORY, useClass: TypeOrmRoulettePlaysRepository },
     SpinResolver,
     RouletteAccounting,
+    RouletteGameAccess,
     ResolveRouletteConfig,
     PlayRoulette,
     ListRoulettePlays,

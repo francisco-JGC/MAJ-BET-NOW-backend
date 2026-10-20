@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 
 import { CurrentUser } from '../../../../auth/infrastructure/http/decorators/current-user.decorator';
 import { Roles } from '../../../../auth/infrastructure/http/decorators/roles.decorator';
@@ -13,6 +20,7 @@ import {
   ListRoulettePlays,
   type ListRoulettePlaysOutput,
 } from '../../../application/use-cases/list-roulette-plays.use-case';
+import { RouletteGameAccess } from '../../../application/services/roulette-game-access.service';
 import { PlayRoulette } from '../../../application/use-cases/play-roulette.use-case';
 import { ResolveRouletteConfig } from '../../../application/use-cases/resolve-roulette-config.use-case';
 import { UpsertRouletteConfig } from '../../../application/use-cases/upsert-roulette-config.use-case';
@@ -33,12 +41,14 @@ export class RouletteController {
     private readonly listPlays: ListRoulettePlays,
     private readonly resolveConfig: ResolveRouletteConfig,
     private readonly upsertConfig: UpsertRouletteConfig,
+    private readonly gameAccess: RouletteGameAccess,
   ) {}
 
   /** Tablero: las 38 casillas y la probabilidad honesta, para la app. */
   @Get('board')
   @Roles(UserRole.ADMIN, UserRole.PARTNER, UserRole.SELLER)
-  board(): { pockets: string[]; fairWinPercentBps: number } {
+  async board(): Promise<{ pockets: string[]; fairWinPercentBps: number }> {
+    await this.gameAccess.assertEnabledForPlay();
     return {
       pockets: [...ROULETTE_POCKETS],
       fairWinPercentBps: FAIR_WIN_PERCENT_BPS,
@@ -87,6 +97,7 @@ export class RouletteController {
   async config(
     @Query('salePointId') salePointId: string,
   ): Promise<RouletteConfigOutput> {
+    await this.gameAccess.assertEnabledForPlay();
     const config = await this.resolveConfig.execute(salePointId);
     return toRouletteConfigOutput(config);
   }
