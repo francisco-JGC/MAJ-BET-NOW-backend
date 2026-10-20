@@ -33,8 +33,7 @@ export class RoulettePlayMapper {
     return RoulettePlay.rehydrate(orm.id, {
       salePointId: orm.salePointId,
       playerId: orm.playerId,
-      numbers: orm.numbers,
-      amountPerNumber: orm.amountPerNumber,
+      bets: orm.bets,
       totalAmount: orm.totalAmount,
       winningNumber: orm.winningNumber,
       isWin: orm.isWin,
@@ -51,8 +50,7 @@ export class RoulettePlayMapper {
     entity.id = play.id;
     entity.salePointId = play.salePointId;
     entity.playerId = play.playerId;
-    entity.numbers = play.numbers;
-    entity.amountPerNumber = play.amountPerNumber;
+    entity.bets = play.bets;
     entity.totalAmount = play.totalAmount;
     entity.winningNumber = play.winningNumber;
     entity.isWin = play.isWin;

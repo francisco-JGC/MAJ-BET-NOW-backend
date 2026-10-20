@@ -54,8 +54,7 @@ export class RouletteController {
     return this.playRoulette.execute({
       salePointId: dto.salePointId,
       playerId: user.id,
-      numbers: dto.numbers,
-      amountPerNumber: dto.amountPerNumber,
+      bets: dto.bets,
       isTest: dto.isTest ?? false,
     });
   }

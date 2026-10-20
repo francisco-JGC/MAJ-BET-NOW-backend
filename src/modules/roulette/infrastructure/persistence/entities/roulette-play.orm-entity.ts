@@ -32,12 +32,13 @@ export class RoulettePlayOrmEntity {
   @JoinColumn({ name: 'player_id' })
   player?: UserOrmEntity;
 
-  /** Casillas elegidas. `text[]` porque '0' y '00' son distintas. */
-  @Column({ type: 'text', array: true })
-  numbers!: string[];
-
-  @Column({ type: 'integer', name: 'amount_per_number' })
-  amountPerNumber!: number;
+  /**
+   * Apuestas: `[{ number, amount }]`. jsonb en vez de dos arrays
+   * paralelos (`numbers[]` + `amounts[]`), que podrían desalinearse y
+   * dejar un monto aplicado a la casilla equivocada.
+   */
+  @Column({ type: 'jsonb' })
+  bets!: Array<{ number: string; amount: number }>;
 
   @Column({ type: 'integer', name: 'total_amount' })
   totalAmount!: number;

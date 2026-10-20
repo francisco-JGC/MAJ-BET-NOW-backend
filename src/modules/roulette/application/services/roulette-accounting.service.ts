@@ -64,14 +64,14 @@ export class RouletteAccounting {
 
     const drawAt = await this.reserveDrawSlot(game.id, play);
 
-    const lines = play.numbers.map(
-      (label, i) =>
+    const lines = play.bets.map(
+      (bet, i) =>
         new TicketLine({
-          label,
-          amount: play.amountPerNumber,
-          // Premio potencial de ESA línea. El evaluador lo paga tal cual
-          // si la casilla coincide con el resultado.
-          prize: play.amountPerNumber * play.prizeMultiplier,
+          label: bet.number,
+          amount: bet.amount,
+          // Premio potencial de ESA línea, sobre su propio monto. El
+          // evaluador lo paga tal cual si la casilla sale.
+          prize: bet.amount * play.prizeMultiplier,
           pairEasyPrize: null,
           subGameId: null,
           subGameName: null,

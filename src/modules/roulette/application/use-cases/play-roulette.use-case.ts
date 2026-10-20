@@ -14,7 +14,7 @@ import {
   ROULETTE_PLAYS_REPOSITORY,
   type RoulettePlaysRepository,
 } from '../../domain/repositories/roulette-plays.repository';
-import { RouletteNumber } from '../../domain/value-objects/roulette-number';
+import { RouletteBets } from '../../domain/value-objects/roulette-bet';
 import {
   toRoulettePlayOutput,
   type RoulettePlayOutput,
@@ -26,8 +26,7 @@ import { ResolveRouletteConfig } from './resolve-roulette-config.use-case';
 export interface PlayRouletteInput {
   salePointId: string;
   playerId: string;
-  numbers: string[];
-  amountPerNumber: number;
+  bets: Array<{ number: string; amount: number }>;
   /** Lo elige el vendedor; solo vale si la sucursal lo tiene habilitado. */
   isTest?: boolean;
 }
@@ -53,17 +52,14 @@ export class PlayRoulette
   ) {}
 
   async execute(input: PlayRouletteInput): Promise<RoulettePlayOutput> {
-    if (!Number.isInteger(input.amountPerNumber) || input.amountPerNumber < 1) {
-      throw new ValidationError('El monto por número debe ser un entero mayor a 0');
-    }
-
     const salePoint = await this.salePoints.findById(input.salePointId);
     if (!salePoint) throw new NotFoundError('SalePoint', input.salePointId);
     if (!salePoint.isActive) {
       throw new ForbiddenException('La sucursal está inactiva');
     }
 
-    const numbers = RouletteNumber.parseSelection(input.numbers);
+    const bets = RouletteBets.parse(input.bets);
+    const numbers = bets.map((b) => b.number);
     const config = await this.resolveConfig.execute(input.salePointId);
 
     const outcome = this.spin.resolve(numbers, config.winPercentBps);
@@ -71,8 +67,7 @@ export class PlayRoulette
     const play = RoulettePlay.create({
       salePointId: input.salePointId,
       playerId: input.playerId,
-      numbers,
-      amountPerNumber: input.amountPerNumber,
+      bets,
       winningNumber: outcome.winningNumber,
       isWin: outcome.isWin,
       winPercentBps: config.winPercentBps,

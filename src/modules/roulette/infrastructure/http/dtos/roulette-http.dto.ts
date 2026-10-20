@@ -7,6 +7,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  ValidateNested,
   IsUUID,
   Max,
   Min,
@@ -14,21 +15,30 @@ import {
 
 import { ROULETTE_POCKET_COUNT } from '../../../domain/value-objects/roulette-number';
 
-export class PlayRouletteHttpDto {
-  @IsUUID()
-  salePointId!: string;
-
-  /** Casillas elegidas ('0', '00', '1'..'36'). Se validan en el dominio. */
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(ROULETTE_POCKET_COUNT)
-  @IsString({ each: true })
-  numbers!: string[];
+export class RouletteBetHttpDto {
+  @IsString()
+  number!: string;
 
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  amountPerNumber!: number;
+  amount!: number;
+}
+
+export class PlayRouletteHttpDto {
+  @IsUUID()
+  salePointId!: string;
+
+  /**
+   * Apuestas: cada casilla con su monto. Las casillas y los montos se
+   * validan en el dominio, que es donde vive la regla.
+   */
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(ROULETTE_POCKET_COUNT)
+  @ValidateNested({ each: true })
+  @Type(() => RouletteBetHttpDto)
+  bets!: RouletteBetHttpDto[];
 
   /**
    * Tirada de prueba. Solo se respeta si la sucursal tiene el modo

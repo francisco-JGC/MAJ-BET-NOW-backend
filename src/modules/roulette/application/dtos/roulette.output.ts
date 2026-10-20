@@ -26,8 +26,8 @@ export interface RoulettePlayOutput {
   id: string;
   salePointId: string;
   playerId: string;
-  numbers: string[];
-  amountPerNumber: number;
+  /** Cada casilla con su monto. */
+  bets: Array<{ number: string; amount: number }>;
   totalAmount: number;
   winningNumber: string;
   isWin: boolean;
@@ -42,8 +42,7 @@ export const toRoulettePlayOutput = (p: RoulettePlay): RoulettePlayOutput => ({
   id: p.id,
   salePointId: p.salePointId,
   playerId: p.playerId,
-  numbers: p.numbers,
-  amountPerNumber: p.amountPerNumber,
+  bets: p.bets,
   totalAmount: p.totalAmount,
   winningNumber: p.winningNumber,
   isWin: p.isWin,
