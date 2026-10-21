@@ -68,6 +68,12 @@ export interface ListTicketsOutput {
  */
 const PRIZE_SQL = `
   CASE
+    -- ROULETTE: comparación exacta de casilla. Sin normalizar a número:
+    -- '0' y '00' son casillas distintas y colapsarían al mismo valor.
+    WHEN g.type = 'roulette'
+      AND TRIM(tl.label) = TRIM(dr.winning_number)
+      THEN tl.prize
+
     WHEN g.type IN ('regular', 'four_digit')
       AND LOWER(TRIM(REGEXP_REPLACE(tl.label, '\\(F\\)', '', 'i')))
           = LOWER(TRIM(dr.winning_number))

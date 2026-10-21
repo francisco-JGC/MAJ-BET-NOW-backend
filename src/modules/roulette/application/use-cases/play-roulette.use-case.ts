@@ -6,6 +6,10 @@ import {
   ValidationError,
 } from '../../../../shared/domain/errors/domain.error';
 import {
+  GAMES_REPOSITORY,
+  type GamesRepository,
+} from '../../../games/domain/repositories/games.repository';
+import {
   SALE_POINTS_REPOSITORY,
   type SalePointsRepository,
 } from '../../../sale-points/domain/repositories/sale-points.repository';
@@ -19,7 +23,10 @@ import {
   toRoulettePlayOutput,
   type RoulettePlayOutput,
 } from '../dtos/roulette.output';
-import { RouletteAccounting } from '../services/roulette-accounting.service';
+import {
+  RouletteAccounting,
+  ROULETTE_GAME_SLUG,
+} from '../services/roulette-accounting.service';
 import { RouletteGameAccess } from '../services/roulette-game-access.service';
 import { SpinResolver } from '../services/spin-resolver.service';
 import { ResolveRouletteConfig } from './resolve-roulette-config.use-case';
@@ -47,6 +54,7 @@ export class PlayRoulette
     private readonly plays: RoulettePlaysRepository,
     @Inject(SALE_POINTS_REPOSITORY)
     private readonly salePoints: SalePointsRepository,
+    @Inject(GAMES_REPOSITORY) private readonly games: GamesRepository,
     private readonly resolveConfig: ResolveRouletteConfig,
     private readonly spin: SpinResolver,
     private readonly accounting: RouletteAccounting,
@@ -55,6 +63,16 @@ export class PlayRoulette
 
   async execute(input: PlayRouletteInput): Promise<RoulettePlayOutput> {
     await this.gameAccess.assertEnabledForPlay();
+
+    // Desactivar el juego desde la web tiene que cortar la venta de
+    // verdad. Sin este chequeo, la ruleta seguía aceptando tiradas: a
+    // diferencia del resto de los juegos no pasa por `CreateTicket`, que
+    // es donde vive esa validación para todos los demás.
+    const game = await this.games.findBySlug(ROULETTE_GAME_SLUG);
+    if (!game) throw new NotFoundError('Game', ROULETTE_GAME_SLUG);
+    if (!game.isActive) {
+      throw new ForbiddenException('La ruleta está desactivada');
+    }
 
     const salePoint = await this.salePoints.findById(input.salePointId);
     if (!salePoint) throw new NotFoundError('SalePoint', input.salePointId);
@@ -82,14 +100,21 @@ export class PlayRoulette
       isTest: config.testMode && (input.isTest ?? false),
     });
 
-    // La tirada SIEMPRE se guarda en el historial de ruleta, de prueba o
-    // no, para que una racha llamativa pueda auditarse. Lo que cambia es
-    // si además entra a la contabilidad.
-    await this.plays.save(play);
-
+    // El registro contable va PRIMERO y la jugada después.
+    //
+    // No son atómicos entre sí (viven en módulos distintos), así que el
+    // orden decide qué pasa si algo falla. Si el ticket falla, no queda
+    // jugada: el vendedor ve el error, no cobra, y no hay rastro
+    // inconsistente. Al revés —jugada guardada y ticket fallido— habría
+    // una tirada cobrada que nunca llegó a facturación, que es el peor
+    // de los dos resultados posibles.
     if (!play.isTest) {
       await this.accounting.register(play);
     }
+
+    // De prueba o no, la tirada queda en el historial de ruleta para que
+    // una racha llamativa pueda auditarse.
+    await this.plays.save(play);
 
     return toRoulettePlayOutput(play);
   }
