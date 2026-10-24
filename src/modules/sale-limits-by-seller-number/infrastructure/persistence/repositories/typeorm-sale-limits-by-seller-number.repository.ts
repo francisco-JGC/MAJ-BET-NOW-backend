@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 
 import type { SaleLimitBySellerNumber } from '../../../domain/entities/sale-limit-by-seller-number.entity';
 import type { SaleLimitsBySellerNumberRepository } from '../../../domain/repositories/sale-limits-by-seller-number.repository';
@@ -51,16 +51,50 @@ export class TypeOrmSaleLimitsBySellerNumberRepository
     await this.repo.delete({ id });
   }
 
+  /**
+   * Cuotas VIGENTES: solo las de vendedores que hoy pertenecen a esa
+   * sucursal y están activos.
+   *
+   * Una cuota de alguien que se fue o fue desactivado sigue en la tabla,
+   * pero dejó de ser una reserva legítima. `enforceSaleLimit` calcula
+   * `pool = tope − suma de cuotas`, así que contarla congela cupo para
+   * quien no puede venderlo y bloquea al resto mucho antes del tope real.
+   *
+   * Ocurrió en loteria: una cuota de 1000 sobre un tope de 1300, de un
+   * vendedor ya trasladado, dejó al equipo con 300 disponibles.
+   */
   async quotasFor(
     salePointId: string,
     gameId: string,
     label: string,
   ): Promise<Map<string, number>> {
-    const rows = await this.repo.find({
-      where: { salePointId, gameId, label },
-      select: { sellerId: true, amount: true },
-    });
-    return new Map(rows.map((r) => [r.sellerId, r.amount]));
+    const rows = await this.activeQuotasQuery(salePointId, gameId)
+      .andWhere('q.label = :label', { label })
+      .getRawMany<{ seller_id: string; amount: number }>();
+
+    return new Map(rows.map((r) => [r.seller_id, Number(r.amount)]));
+  }
+
+  /**
+   * Base compartida por las dos lecturas de cuotas, para que el filtro de
+   * vigencia no pueda quedar aplicado en una y olvidado en la otra — que
+   * es exactamente como se escapó la primera vez.
+   */
+  private activeQuotasQuery(salePointId: string, gameId: string) {
+    return this.repo
+      .createQueryBuilder('q')
+      .innerJoin(
+        'users',
+        'u',
+        'u.id = q.seller_id AND u.is_active = true AND u.sale_point_id = q.sale_point_id',
+      )
+      .select([
+        'q.seller_id AS seller_id',
+        'q.label AS label',
+        'q.amount AS amount',
+      ])
+      .where('q.sale_point_id = :salePointId', { salePointId })
+      .andWhere('q.game_id = :gameId', { gameId });
   }
 
   async findQuotaForSeller(
@@ -84,12 +118,12 @@ export class TypeOrmSaleLimitsBySellerNumberRepository
     for (const label of labels) result.set(label, new Map());
     if (labels.length === 0) return result;
 
-    const rows = await this.repo.find({
-      where: { salePointId, gameId, label: In(labels) },
-      select: { sellerId: true, label: true, amount: true },
-    });
+    const rows = await this.activeQuotasQuery(salePointId, gameId)
+      .andWhere('q.label IN (:...labels)', { labels })
+      .getRawMany<{ seller_id: string; label: string; amount: number }>();
+
     for (const r of rows) {
-      result.get(r.label)!.set(r.sellerId, r.amount);
+      result.get(r.label)!.set(r.seller_id, Number(r.amount));
     }
     return result;
   }
